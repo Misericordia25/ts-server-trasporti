@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Seleziona Targa – Pagina Ponte</title>
+
+<!-- Libreria jsQR -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+<style>
+body{
+  margin:0;
+  background:#0f172a;
+  color:#e5e7eb;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+}
+header{
+  padding:16px;
+  background:#0b1220;
+  border-bottom:1px solid #1f2937;
+}
+h1{margin:0;font-size:22px;}
+
+main{
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+
+.panel{
+  background:#111827;
+  border:1px solid #1f2937;
+  border-radius:10px;
+  padding:16px;
+}
+
+button, input[type="text"]{
+  padding:12px;
+  font-size:15px;
+  background:#0b1220;
+  color:#e5e7eb;
+  border:1px solid #1f2937;
+  border-radius:8px;
+  width:100%;
+  box-sizing:border-box;
+  margin-top:8px;
+}
+
+button:active{opacity:0.8;}
+
+.small{
+  font-size:13px;
+  color:#9ca3af;
+}
+
+video{
+  width:100%;
+  height:auto;
+  border-radius:10px;
+  background:#000;
+}
+
+#log{
+  background:#0a0f1a;
+  padding:8px;
+  height:160px;
+  overflow-y:auto;
+  border-radius:8px;
+  border:1px solid #1f2937;
+  font-family:monospace;
+  font-size:12px;
+}
+.log-entry{padding:4px;}
+.log-info{color:#22c55e;}
+.log-warn{color:#f59e0b;}
+.log-error{color:#ef4444;}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Seleziona il Veicolo (QR o Manuale)</h1>
+</header>
+
+<main>
+
+  <!-- Pulsante Impostazioni -->
+  <button onclick="window.location.href='index_impostazioni.html'">
+    ⚙️ Impostazioni Email & Ente
+  </button>
+
+  <!-- Scanner QR -->
+  <div class="panel">
+    <h3>📷 Scansione QR</h3>
+
+    <video id="video" playsinline></video>
+
+    <button id="startBtn">Avvia Camera</button>
+    <button id="stopBtn" disabled>Ferma Camera</button>
+    <button id="torchBtn" disabled>Torcia</button>
+    <button id="retryBtn" disabled>Riprova</button>
+
+    <p class="small">Allinea il QR con la targa dentro l’area video.</p>
+  </div>
+
+  <!-- Carica immagine -->
+  <div class="panel">
+    <h3>📁 Leggi QR da immagine</h3>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <!-- Manuale -->
+  <div class="panel">
+    <h3>⌨️ Inserisci Targa Manualmente</h3>
+    <input id="manualInput" type="text" placeholder="Inserisci targa">
+    <button onclick="manualSubmit()">Conferma</button>
+  </div>
+
+  <!-- Log -->
+  <div class="panel">
+    <h3>📜 Log diagnostico</h3>
+    <div id="log"></div>
+    <button onclick="clearLog()">Pulisci log</button>
+  </div>
+
+</main>
+
+<script>
+/* =====================================================
+   LOGGING
+===================================================== */
+function log(type,msg){
+  const box=document.getElementById("log");
+  const el=document.createElement("div");
+  el.className="log-entry log-"+type;
+  el.textContent = "["+(new Date().toLocaleTimeString())+"] "+msg;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+
+/* =====================================================
+   VARIABILI GLOBALI
+===================================================== */
+let stream=null;
+let track=null;
+let torchOn=false;
+let analyzeLoop=null;
+
+/* =====================================================
+   AVVIO CAMERA
+===================================================== */
+async function startCamera(){
+  try{
+    log("info","Richiesta permesso camera…");
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:"environment",
+        width:{ideal:1280},
+        height:{ideal:720}
+      }
+    });
+
+    document.getElementById("video").srcObject = stream;
+    await document.getElementById("video").play();
+
+    track = stream.getVideoTracks()[0];
+    document.getElementById("stopBtn").disabled=false;
+    document.getElementById("retryBtn").disabled=false;
+
+    log("info","Camera avviata");
+
+    const caps = track.getCapabilities();
+    if(caps.torch){
+      document.getElementById("torchBtn").disabled=false;
+      log("info","Torcia disponibile");
+    }
+
+    startDecoding();
+  }catch(e){
+    log("error","Errore avvio camera: "+e);
+  }
+}
+
+/* =====================================================
+   STOP CAMERA
+===================================================== */
+function stopCamera(){
+  if(stream){
+    stream.getTracks().forEach(t=>t.stop());
+    stream=null;
+    track=null;
+    torchOn=false;
+    document.getElementById("stopBtn").disabled=true;
+    document.getElementById("torchBtn").disabled=true;
+    log("warn","Camera fermata");
+  }
+  if(analyzeLoop) cancelAnimationFrame(analyzeLoop);
+}
+
+/* =====================================================
+   DECODIFICA CONTINUA
+===================================================== */
+function startDecoding(){
+  const video=document.getElementById("video");
+  const canvas=document.createElement("canvas");
+  const ctx=canvas.getContext("2d");
+
+  function scan(){
+    if(!video.videoWidth){
+      analyzeLoop=requestAnimationFrame(scan);
+      return;
+    }
+
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code = jsQR(imageData.data,canvas.width,canvas.height);
+
+    if(code){
+      log("info","QR letto: "+code.data);
+      stopCamera();
+      openChecklist(code.data);
+      return;
+    }
+    analyzeLoop=requestAnimationFrame(scan);
+  }
+  scan();
+}
+
+/* =====================================================
+   TORCIA
+===================================================== */
+async function toggleTorch(){
+  if(!track) return;
+  torchOn = !torchOn;
+  try{
+    await track.applyConstraints({advanced:[{torch:torchOn}]});
+    log("info","Torcia "+(torchOn?"accesa":"spenta"));
+  }catch(e){
+    log("error","Errore torcia: "+e);
+  }
+}
+
+/* =====================================================
+   LETTURA DA IMMAGINE
+===================================================== */
+document.getElementById("fileInput").addEventListener("change",function(){
+  const file=this.files[0];
+  if(!file) return;
+
+  const img=new Image();
+  img.onload=function(){
+    const canvas=document.createElement("canvas");
+    const ctx=canvas.getContext("2d");
+    canvas.width=img.width;
+    canvas.height=img.height;
+    ctx.drawImage(img,0,0);
+
+    const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code=jsQR(data.data,canvas.width,canvas.height);
+    if(code){
+      log("info","QR da immagine: "+code.data);
+      openChecklist(code.data);
+    }else{
+      log("warn","Nessun QR trovato nell’immagine");
+    }
+  };
+  img.src=URL.createObjectURL(file);
+});
+
+/* =====================================================
+   INSERIMENTO MANUALE
+===================================================== */
+function manualSubmit(){
+  const val=document.getElementById("manualInput").value.trim();
+  if(!val){
+    log("warn","Targa manuale vuota");
+    return;
+  }
+  log("info","Targa inserita: "+val);
+  openChecklist(val);
+}
+
+/* =====================================================
+   APRI TS EMERGENZA
+===================================================== */
+function openChecklist(targa){
+  const clean = targa.replace(/[^A-Za-z0-9]/g,"").toUpperCase();
+  window.location.href = "ts_emergenza.html?targa="+clean;
+}
+
+/* =====================================================
+   EVENTI
+===================================================== */
+document.getElementById("startBtn").onclick=startCamera;
+document.getElementById("stopBtn").onclick=stopCamera;
+document.getElementById("retryBtn").onclick=(()=>{ stopCamera(); startCamera(); });
+document.getElementById("torchBtn").onclick=toggleTorch;
+
+function clearLog(){
+  document.getElementById("log").innerHTML="";
+}
+</script>
+
+</body>
+</html>

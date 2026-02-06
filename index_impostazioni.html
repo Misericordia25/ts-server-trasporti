@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Impostazioni App Misericordia</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f4faff;
+  margin:0;
+  padding:20px;
+  max-width:720px;
+  margin:auto;
+}
+h1{margin-bottom:10px;color:#0056b3;}
+.section{
+  background:#fff;
+  padding:15px;
+  border-radius:10px;
+  margin-bottom:20px;
+  border:2px solid #d9e7ff;
+}
+label{font-weight:bold;margin-top:10px;display:block;}
+input,textarea{
+  width:100%;
+  padding:10px;
+  margin-top:5px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  font-size:16px;
+}
+button{
+  padding:12px 22px;
+  margin:8px 4px;
+  font-size:17px;
+  border-radius:6px;
+  border:none;
+  cursor:pointer;
+  background:#0069d9;
+  color:#fff;
+}
+.btn-secondary{background:#28a745!important;}
+.btn-warning{background:#ff9f00!important;}
+.btn-danger{background:#dc3545!important;}
+.hidden{display:none}
+small{color:#555}
+</style>
+</head>
+
+<body>
+
+<h1>⚙️ Impostazioni App Misericordia</h1>
+
+<!-- ==========================
+     BLOCCO PRESIDENTE
+=========================== -->
+<div id="admin_section" class="hidden">
+
+  <div class="section">
+    <h3>🏷️ Inizializzazione Tablet</h3>
+
+    <label>Codice Società</label>
+    <input id="codice_societa" type="text" placeholder="Es. MIS_OSIMO">
+
+    <label>Lettera identificativa Tablet</label>
+    <input id="tablet_code"
+           type="text"
+           maxlength="1"
+           placeholder="Es. A"
+           style="text-transform:uppercase"
+           oninput="this.value=this.value.toUpperCase()">
+
+    <small>
+      Una sola lettera (A–Z).<br>
+      Deve essere unica per ogni tablet.
+    </small>
+
+    <button class="btn-secondary" onclick="inizializzaTablet()">
+      🔄 Carica configurazione società
+    </button>
+
+    <div id="init_status" style="margin-top:8px;font-weight:bold;"></div>
+  </div>
+
+  <div class="section">
+    <h3>🏛️ Dati Ente</h3>
+    <label>Nome ente</label>
+    <input id="ente_nome" type="text">
+    <label>Città</label>
+    <input id="ente_citta" type="text">
+    <label>Via</label>
+    <input id="ente_via" type="text">
+    <label>Numero civico</label>
+    <input id="ente_civico" type="text">
+    <label>Telefono</label>
+    <input id="ente_tel" type="text">
+  </div>
+
+  <div class="section">
+    <h3>📧 Email ufficiale per invio documenti</h3>
+    <label>Email destinazione</label>
+    <input id="mail_to" type="email">
+
+    <label style="margin-top:14px;display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="documento_definitivo">
+      Documento definitivo – deposita su Drive
+    </label>
+
+    <small>
+      Se NON selezionato: modalità test / scuola.<br>
+      Nessun deposito su Drive e nessun progressivo.
+    </small>
+  </div>
+
+  <div class="section">
+    <h3>🔐 Sicurezza</h3>
+    <button class="btn-danger" onclick="cambiaPin()">🔄 Cambia PIN Presidente</button>
+  </div>
+
+  <button onclick="saveSettings()" class="btn-secondary">
+    💾 Salva impostazioni
+  </button>
+</div>
+
+<!-- ==========================
+     BLOCCO OPERATORE
+=========================== -->
+<div id="operator_section" class="section">
+  <h3>🚑 Accesso Operatore</h3>
+  <button onclick="sbloccaAdmin()">⚙️ Accesso Presidente</button>
+</div>
+
+<button onclick="location.href='index.html'" class="btn-warning">
+  🏠 Torna alla Pagina Ponte
+</button>
+
+<script src="js/load-config.js"></script>
+
+<script>
+const LS_KEY_PLAIN  = "IMPOSTAZIONI_MISERICORDIA";
+const LS_KEY_SECURE = "IMPOSTAZIONI_MISERICORDIA_SECURE";
+const LS_KEY_LOCAL  = "IMPOSTAZIONI_MISERICORDIA_LOCAL";
+const PIN_KEY       = "PIN_PRESIDENTE";
+const ADMIN_UNLOCK  = "ADMIN_UNLOCKED";
+const TABLET_CODE_KEY = "TABLET_CODE";
+
+/* ==========================
+   ACCESSO PRESIDENTE
+=========================== */
+function sbloccaAdmin(){
+  const pin = prompt("Inserisci codice presidente");
+  if(!pin) return;
+
+  let saved = localStorage.getItem(PIN_KEY);
+  if(!saved){
+    localStorage.setItem(PIN_KEY, pin);
+    saved = pin;
+    alert("PIN presidente impostato");
+  }
+
+  if(pin === saved){
+    localStorage.setItem(ADMIN_UNLOCK, "1");
+    mostraAdmin();
+  }else{
+    alert("Codice errato");
+  }
+}
+
+function mostraAdmin(){
+  admin_section.classList.remove("hidden");
+  operator_section.classList.add("hidden");
+}
+
+/* ==========================
+   INIZIALIZZAZIONE
+=========================== */
+async function inizializzaTablet(){
+  const codice = codice_societa.value.trim().toUpperCase();
+  const tabletCode = tablet_code.value.trim().toUpperCase();
+
+  if(!/^[A-Z]$/.test(tabletCode)){
+    init_status.textContent = "❌ Inserire la lettera del tablet";
+    init_status.style.color = "red";
+    return;
+  }
+
+  if(!codice){
+    init_status.textContent = "❌ Inserire codice società";
+    init_status.style.color = "red";
+    return;
+  }
+
+  localStorage.setItem("CODICE_SOCIETA", codice);
+  localStorage.setItem(TABLET_CODE_KEY, tabletCode);
+
+  init_status.textContent = "⏳ Caricamento configurazione...";
+  init_status.style.color = "#555";
+
+  const ok = await loadConfigurazioneSocieta();
+  init_status.textContent = ok ? "✅ Configurazione caricata" : "❌ Errore caricamento";
+  init_status.style.color = ok ? "green" : "red";
+}
+
+/* ==========================
+   CAMBIO PIN
+=========================== */
+function cambiaPin(){
+  const oldPin = prompt("Inserisci PIN attuale");
+  if(oldPin !== localStorage.getItem(PIN_KEY)){
+    alert("PIN errato");
+    return;
+  }
+  const newPin = prompt("Nuovo PIN (min 4 cifre)");
+  if(!newPin || newPin.length < 4){
+    alert("PIN non valido");
+    return;
+  }
+  localStorage.setItem(PIN_KEY, newPin);
+  alert("PIN aggiornato");
+}
+
+/* ==========================
+   LOAD
+=========================== */
+
+window.addEventListener("DOMContentLoaded", () => {
+  setTimeout(caricaDatiEnte, 100);
+});
+
+function caricaDatiEnte(){
+  const raw = localStorage.getItem("IMPOSTAZIONI_MISERICORDIA");
+  const local = JSON.parse(localStorage.getItem("IMPOSTAZIONI_MISERICORDIA_LOCAL") || "{}");
+
+  if(!raw) return;
+
+  try{
+    const cfg = JSON.parse(raw);
+
+    ente_nome.value   = cfg.ente?.nome   || "";
+    ente_citta.value  = cfg.ente?.citta  || "";
+    ente_via.value    = cfg.ente?.via    || "";
+    ente_civico.value = cfg.ente?.civico || "";
+    ente_tel.value    = cfg.ente?.tel    || "";
+    mail_to.value     = cfg.mail?.to     || "";
+
+    documento_definitivo.checked = local.documento_definitivo === true;
+  }catch(e){
+    console.error("Errore parsing impostazioni:", e);
+  }
+};
+
+/* ==========================
+   SALVATAGGIO
+=========================== */
+async function saveSettings(){
+  const pin = prompt("Conferma PIN presidente");
+  if(pin !== localStorage.getItem(PIN_KEY)){
+    alert("PIN non valido");
+    return;
+  }
+
+  const tabletCode = tablet_code.value.trim().toUpperCase();
+  if(!/^[A-Z]$/.test(tabletCode)){
+    alert("Inserire una sola lettera (A–Z) per il tablet");
+    return;
+  }
+  localStorage.setItem(TABLET_CODE_KEY, tabletCode);
+
+  const settings = {
+    ente:{
+      nome: ente_nome.value,
+      citta: ente_citta.value,
+      via: ente_via.value,
+      civico: ente_civico.value,
+      tel: ente_tel.value
+    },
+    mail:{ to: mail_to.value.trim() }
+  };
+
+  localStorage.setItem(LS_KEY_PLAIN, JSON.stringify(settings));
+  localStorage.setItem(
+    LS_KEY_LOCAL,
+    JSON.stringify({ documento_definitivo: documento_definitivo.checked })
+  );
+
+  const encrypted = await encrypt(pin, settings);
+  localStorage.setItem(LS_KEY_SECURE, JSON.stringify(encrypted));
+
+  alert("✅ Impostazioni salvate");
+}
+
+/* ==========================
+   CIFRATURA
+=========================== */
+function bufToBase64(bytes){
+  let s=""; bytes.forEach(b=>s+=String.fromCharCode(b));
+  return btoa(s);
+}
+async function deriveKey(pin, salt){
+  const km = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(pin),
+    "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    {name:"PBKDF2",salt,iterations:50000,hash:"SHA-256"},
+    km, {name:"AES-GCM",length:256},
+    false, ["encrypt","decrypt"]
+  );
+}
+async function encrypt(pin, obj){
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const key  = await deriveKey(pin, salt);
+  const data = new TextEncoder().encode(JSON.stringify(obj));
+  const enc  = await crypto.subtle.encrypt({name:"AES-GCM",iv}, key, data);
+  return {
+    salt:bufToBase64(salt),
+    iv:bufToBase64(iv),
+    data:bufToBase64(new Uint8Array(enc))
+  };
+}
+</script>
+
+</body>
+</html>
