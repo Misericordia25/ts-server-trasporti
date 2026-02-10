@@ -103,7 +103,9 @@ small{color:#555}
     <label>Email destinazione</label>
     <input id="mail_to" type="email">
 
-    <label style="margin-top:14px;display:flex;align-items:center;gap:8px;">
+<label class="checkbox-row">
+
+
       <input type="checkbox" id="documento_definitivo">
       Documento definitivo – deposita su Drive
     </label>
@@ -198,9 +200,15 @@ async function inizializzaTablet(){
   init_status.textContent = "⏳ Caricamento configurazione...";
   init_status.style.color = "#555";
 
-  const ok = await loadConfigurazioneSocieta();
-  init_status.textContent = ok ? "✅ Configurazione caricata" : "❌ Errore caricamento";
-  init_status.style.color = ok ? "green" : "red";
+const ok = await loadConfigurazioneSocieta();
+
+if(ok){
+  caricaDatiEnte(); // 🔴 MANCAVA QUESTO
+}
+
+init_status.textContent = ok ? "✅ Configurazione caricata" : "❌ Errore caricamento";
+init_status.style.color = ok ? "green" : "red";
+
 }
 
 /* ==========================

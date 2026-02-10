@@ -1,0 +1,2217 @@
+DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Modulo TS - Emergenza</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f0f0f0;
+  margin:0;
+  padding:20px;
+}
+
+.modulo{
+  max-width:1000px;
+  margin:auto;
+  background:#fff;
+  border:3px solid #000;
+padding:18px 30px;
+  box-sizing:border-box;
+}
+
+/* INTESTAZIONE */
+.intestazione{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border:2px solid #000;
+  padding:10px 20px;
+  margin-bottom:20px;
+  background:#fff3b0;
+}
+
+.intestazione-sx,
+.intestazione-dx{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.intestazione-testo{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  line-height:1.3;
+  font-size:15px;
+}
+
+.intestazione-centro{
+  text-align:center;
+  flex:1;
+  font-weight:bold;
+  font-size:21px;
+}
+
+.logo{
+  height:60px;
+  object-fit:contain;
+}
+
+/* CAMPI */
+.riga{
+  display:flex;
+  flex-wrap:wrap;
+  margin-bottom:15px;
+}
+
+.campo{
+  flex:1 1 30%;
+  margin-right:15px;
+  margin-bottom:10px;
+}
+
+/* ==============================
+   RIGA INTESTAZIONE TS – 5 CAMPI SU UNA RIGA
+============================== */
+.riga-intestazione{
+  flex-wrap:nowrap;              /* 👈 forza una sola riga */
+}
+
+.riga-intestazione .campo{
+  flex:1 1 18%;                  /* 5 campi = ~20% */
+  margin-right:10px;
+}
+
+.riga-intestazione .campo:last-child{
+  margin-right:0;
+}
+
+/* sicurezza mobile: se lo schermo è troppo stretto */
+@media (max-width: 900px){
+  .riga-intestazione{
+    flex-wrap:wrap;              /* torna a capo solo se serve */
+  }
+}
+
+
+
+.campo label{
+  font-weight:bold;
+  display:block;
+  margin-bottom:5px;
+  font-size:15px;
+}
+
+.campo input,
+.campo select{
+  width:100%;
+padding:3px 4px;
+  font-size:13px;
+}
+
+/* 🔒 FIX DEFINITIVO ALLINEAMENTO TESTO (html2canvas safe) */
+.campo input[type="text"],
+.campo input[type="number"],
+.campo input[type="date"],
+.campo select{
+  height:32px;
+  line-height:32px;      /* 👈 chiave */
+  box-sizing:border-box;
+}
+
+.assistiti{
+  display:none;
+  margin-top:20px;
+}
+
+.errore{
+  font-size:12px;
+  display:none;
+  color:red;
+}
+
+/* WARNING anagrafico */
+.cf-warning{
+  border:2px solid #f59e0b !important;
+  background:#fff7e6;
+}
+
+/* ==============================
+   COMPATTAZIONE BLOCCHI (PDF + HTML)
+============================== */
+section.modulo{
+  margin-top:6px !important;   /* ⬅️ valore ottimale */
+}
+
+
+</style>
+</head>
+
+<body>
+
+<section class="modulo">
+  <div class="intestazione">
+    <div class="intestazione-sx">
+      <img src="img/logo_regione.png" class="logo">
+      <div class="intestazione-testo">
+        <strong>MODULO TS EMERGENZA</strong>
+        <span>Ex DGR 307/17, R.R. n3/13,<br>L.R. 36/39</span>
+      </div>
+    </div>
+
+    <div class="intestazione-centro">
+      FOGLIO VIAGGIO<br>TRASPORTO SANITARIO
+    </div>
+
+    <div class="intestazione-dx">
+      <div class="intestazione-testo" style="text-align:right" id="ente_info"></div>
+      <img src="img/logo_misericordia.png" class="logo">
+    </div>
+  </div>
+
+<form id="tsForm">
+
+<div class="riga riga-intestazione">
+  <div class="campo">
+    <label>Data del Servizio</label>
+    <input type="date" id="data_servizio" name="data_servizio">
+  </div>
+
+  <div class="campo">
+    <label>Targa del Mezzo</label>
+    <input type="text" id="targa" name="targa" readonly>
+  </div>
+
+  <div class="campo">
+    <label>ID Tablet</label>
+    <input type="text" id="id_tablet" name="id_tablet" readonly>
+  </div>
+
+  <div class="campo">
+    <label>Numero Progressivo</label>
+    <input type="number" id="numero_progressivo" name="numero_progressivo" readonly>
+  </div>
+
+  <div class="campo">
+    <label>Numero Assistiti</label>
+    <select id="numero_assistiti" name="numero_assistiti">
+      <option value="">–</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+    </select>
+  </div>
+  </div>
+
+  <div id="assistiti_container" class="assistiti"></div>
+
+</form>
+</section>
+
+<script src="js/load-config.js"></script>
+
+
+<script>
+/* ==========================
+   AUTO-COMPILAZIONE
+========================== */
+
+const dataInput = document.getElementById('data_servizio');
+
+// Imposta la data SOLO se NON esiste un TS sospeso
+if (!localStorage.getItem('TsEmergenza_DRAFT')) {
+  dataInput.value = new Date().toISOString().slice(0,10);
+}
+
+
+
+
+// --- TARGA AUTO ---
+const targaInput = document.getElementById("targa");
+let targa = localStorage.getItem("TARGA_VEICOLO");
+if (!targa) {
+  const params = new URLSearchParams(window.location.search);
+  targa = params.get("targa");
+}
+if (targa) {
+  targaInput.value = targa.toUpperCase();
+}
+
+
+// --- NUMERO PROGRESSIVO (VISIVO) + CODICE TABLET (PER NOMI FILE) ---
+
+const year = new Date().getFullYear();
+const key = "PROGRESSIVO_TS_" + year;
+
+// ultimo progressivo ufficiale (solo lettura qui)
+const last = parseInt(localStorage.getItem(key) || "0", 10);
+
+// progressivo SOLO VISIVO (non salvato qui)
+const tempNum = last + 1;
+
+// lettera tablet inserita dal Presidente in index_impostazioni.html
+const tabletCode = (localStorage.getItem("TABLET_CODE") || "").trim().toUpperCase();
+
+document.getElementById("id_tablet").value = tabletCode;
+
+// modalità definitivo (dal localStorage locale)
+const localFlags = JSON.parse(localStorage.getItem("IMPOSTAZIONI_MISERICORDIA_LOCAL") || "{}");
+const isDefinitivo = localFlags.documento_definitivo === true;
+
+// Salviamo SEMPRE il numero proposto (serve al BLOCCO 5)
+sessionStorage.setItem("TS_PROGRESSIVO_TEMP", String(tempNum));
+
+// Salviamo anche il codice tablet (serve al BLOCCO 5 per comporre A3 nei nomi file)
+sessionStorage.setItem("TS_TABLET_CODE", tabletCode);
+
+// Salviamo il flag (serve al BLOCCO 5 per logica test/definitivo)
+sessionStorage.setItem("TS_IS_DEFINITIVO", isDefinitivo ? "1" : "0");
+
+// UI: se NON definitivo, niente progressivo (coerente con nota “test/scuola”)
+document.getElementById("numero_progressivo").value = isDefinitivo ? tempNum : "";
+
+
+// --- DATI ENTE ---
+const raw = localStorage.getItem("IMPOSTAZIONI_MISERICORDIA");
+if (raw) {
+  try {
+    const cfg = JSON.parse(raw);
+    ente_info.innerHTML =
+      `<strong>${cfg.ente.nome}</strong><br>
+       ${cfg.ente.via} ${cfg.ente.civico}<br>
+       ${cfg.ente.citta}<br>${cfg.ente.tel}`;
+  } catch (e) {}
+}
+
+/* ==========================
+   ASSISTITI DINAMICI
+========================== */
+const assistitiContainer = document.getElementById("assistiti_container");
+const numero_assistiti = document.getElementById("numero_assistiti");
+
+numero_assistiti.addEventListener("change", function(){
+  assistitiContainer.innerHTML="";
+  if(!this.value) return;
+  assistitiContainer.style.display="block";
+
+  for(let i=1;i<=this.value;i++){
+    assistitiContainer.innerHTML += `
+      <div class="riga">
+        <div class="campo" style="flex:60%">
+          <label>Assistito ${i} - Nome e Cognome</label>
+          <input type="text" name="assistito${i}_nome">
+        </div>
+        <div class="campo" style="flex:35%">
+         <label>Codice Fiscale</label>
+
+<input type="text"
+       name="assistito${i}_cf"
+       maxlength="16"
+       oninput="validaCF(this, ${i})">
+
+<span class="errore" id="errore_cf${i}">
+  Codice fiscale non valido
+</span>
+
+      
+        </div>
+      </div>
+
+      <div class="riga">
+        <div class="campo" style="flex:35%">
+          <label>Luogo di Nascita</label>
+          <input type="text" name="assistito${i}_luogo">
+        </div>
+        <div class="campo" style="flex:35%">
+          <label>Data di Nascita</label>
+          <input type="date" name="assistito${i}_nascita">
+        </div>
+        <div class="campo" style="flex:25%">
+          <label>Codice CCT / 118</label>
+          <input type="text" name="assistito${i}_codice">
+        </div>
+      </div>
+    `;
+  }
+});
+
+/* ==========================
+   VALIDAZIONE CF COMPLETA
+========================== */
+function validaCF(input,i){
+  const msg=document.getElementById("errore_cf"+i);
+  input.value=input.value.toUpperCase().trim();
+  input.classList.remove("cf-warning");
+  msg.style.display="none";
+  msg.style.color="red";
+  input.dataset.valid="false";
+
+  const cf=input.value;
+  if(cf.length!==16) return;
+
+  const regex=/^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/;
+  if(!regex.test(cf)) return;
+
+  let warning=false;
+  const mesi={A:1,B:2,C:3,D:4,E:5,H:6,L:7,M:8,P:9,R:10,S:11,T:12};
+
+  let anno=parseInt(cf.substr(6,2),10);
+  let mese=mesi[cf[8]];
+  let giorno=parseInt(cf.substr(9,2),10);
+  if(giorno>40) giorno-=40;
+
+  const ac=new Date().getFullYear()%100;
+  const secolo=anno<=ac?2000:1900;
+  const a=secolo+anno;
+
+  if(!mese||giorno<1||giorno>31) warning=true;
+  else{
+    const d=new Date(a,mese-1,giorno);
+    if(d.getFullYear()!==a||d.getMonth()+1!==mese||d.getDate()!==giorno||d>new Date())
+      warning=true;
+  }
+
+  const dispari={'0':1,'1':0,'2':5,'3':7,'4':9,'5':13,'6':15,'7':17,'8':19,'9':21,
+  'A':1,'B':0,'C':5,'D':7,'E':9,'F':13,'G':15,'H':17,'I':19,'J':21,
+  'K':2,'L':4,'M':18,'N':20,'O':11,'P':3,'Q':6,'R':8,'S':12,'T':14,
+  'U':16,'V':10,'W':22,'X':25,'Y':24,'Z':23};
+
+  const pari={'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,
+  'A':0,'B':1,'C':2,'D':3,'E':4,'F':5,'G':6,'H':7,'I':8,'J':9,
+  'K':10,'L':11,'M':12,'N':13,'O':14,'P':15,'Q':16,'R':17,'S':18,'T':19,
+  'U':20,'V':21,'W':22,'X':23,'Y':24,'Z':25};
+
+  let s=0;
+  for(let j=0;j<15;j++) s+=(j%2===0)?dispari[cf[j]]:pari[cf[j]];
+  if(String.fromCharCode(s%26+65)!==cf[15]) return;
+
+  input.dataset.valid="true";
+
+  if(warning){
+    msg.style.display="block";
+    msg.style.color="#d97706";
+    msg.innerText="Attenzione: dati anagrafici non coerenti con il CF";
+    input.classList.add("cf-warning");
+  }
+}
+</script>
+
+
+
+
+
+
+
+<section id="fasi-trasporto" class="modulo" style="margin-top:24px;">
+  <style>
+    /* Scoping locale: non inquina altri stili */
+    #fasi-trasporto .titolo { text-align:center; font-weight:700; font-size:15px; margin:0 0 8px; }
+    #fasi-trasporto .fasi-table { width:100%; border-collapse:collapse; }
+    #fasi-trasporto .fasi-table th, 
+    #fasi-trasporto .fasi-table td { border:1px solid #000; 
+padding:4px 5px;   /* ⬅️ dimezzato */
+vertical-align:middle; }
+    #fasi-trasporto .fasi-table th { background:#e0e0e0; font-weight:700; text-align:center; }
+ #fasi-trasporto .fasi-table td input[type="text"],
+#fasi-trasporto .fasi-table td input[type="time"],
+#fasi-trasporto .fasi-table td input[type="number"] {
+  width:100%;
+  padding:4px 6px;
+  height:28px;
+  line-height:20px;   /* 👈 diverso dall’altezza */
+  font-size:13px;
+  box-sizing:border-box;
+}
+
+    #fasi-trasporto .btn-file { display:inline-block; padding:6px 10px; font-size:12px; border:1px solid #000; background:#f7f7f7; cursor:pointer; }
+    #fasi-trasporto .btn-file input[type="file"] { display:none; }
+    #fasi-trasporto .status { display:inline-block; margin-left:8px; font-size:12px; color:#333; }
+    #fasi-trasporto .status.ok { color:#0a7a33; }
+    #fasi-trasporto .status.err { color:#b91c1c; }
+
+    #fasi-trasporto .totale-wrap { display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:12px; }
+    #fasi-trasporto .totale-box { border:2px solid #000; padding:8px 10px; font-weight:700; display:inline-flex; align-items:center; gap:10px; background:#fff; }
+    #fasi-trasporto #totale_km { width:100px; text-align:right; padding:6px; font-weight:700; }
+
+    #fasi-trasporto .fasi-scelta { margin-top:14px; display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
+    #fasi-trasporto .fasi-scelta strong { margin-right:8px; }
+
+    /* Firma + timbro (canvas altezza dimezzata) */
+    #fasi-trasporto .firma-area { margin-top:14px; }
+    #fasi-trasporto .firma-label { font-weight:450; display:block; margin-bottom:6px; }
+    #fasi-trasporto .firma-wrap { position:relative; width:100%; height:110px; border:1px solid #000; background:#fff; overflow:hidden; }
+    #fasi-trasporto #firma_canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair; z-index:2; }
+    #fasi-trasporto #timbro_overlay { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(0deg) scale(1); transform-origin:center; display:none; pointer-events:auto; max-width:70%; max-height:70%; z-index:1; }
+    #fasi-trasporto .firma-tools { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    #fasi-trasporto .firma-tools .btn { padding:6px 10px; border:1px solid #000; background:#f7f7f7; cursor:pointer; font-size:12px; }
+
+    /* Controlli avanzati timbro: nascosti finché non richiesti */
+    #fasi-trasporto #timbro_controls[hidden] { display:none; }
+    #fasi-trasporto #timbro_controls { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+    #fasi-trasporto #timbro_controls .ctrl { display:inline-flex; align-items:center; gap:6px; }
+    #fasi-trasporto #timbro_controls input[type="range"] { width:160px; }
+
+    /* Note finali */
+    #fasi-trasporto .note-box { margin-top:14px; border:1px solid #000; background:#fff; }
+    #fasi-trasporto .note-head { background:#e0e0e0; border-bottom:1px solid #000; padding:6px 8px; font-weight:700; }
+    #fasi-trasporto .note-body { padding:8px; }
+    #fasi-trasporto .note-body textarea { width:98%; min-height:30px; resize:vertical; font-size:18px; }
+
+    @media (max-width:680px) {
+      #fasi-trasporto .fasi-table th, #fasi-trasporto .fasi-table td { padding:6px; font-size:12px; }
+      #fasi-trasporto .firma-wrap { height:100px; }
+    }
+  </style>
+
+  <div class="titolo">Fasi del Trasporto</div>
+
+  <table class="fasi-table" id="tab-fasi">
+    <thead>
+      <tr>
+        <th>Fase</th>
+        <th>Località</th>
+        <th>Ora</th>
+        <th>KM</th>
+        <th>Foto KM</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-fase="partenza">
+        <td>Partenza mezzo</td>
+        <td><input type="text" name="loc_partenza" placeholder="Es. Sede di …….. (..)"></td>
+        <td><input type="time" name="ora_partenza"></td>
+        <td><input type="text" class="km-input" id="km_partenza" inputmode="numeric" pattern="\d*" placeholder="0"></td>
+        <td>
+          <label class="btn-file">Scatta foto al tachimetro
+            <input type="file" accept="image/*" capture="environment" class="ocr-file" data-target="km_partenza">
+          </label>
+          <span class="status" id="st_km_partenza"></span>
+        </td>
+      </tr>
+      <tr data-fase="prelievo">
+        <td>Prelevamento trasportato</td>
+        <td><input type="text" name="loc_prelievo"></td>
+        <td><input type="time" name="ora_prelievo"></td>
+        <td><input type="text" class="km-input" id="km_prelievo" inputmode="numeric" pattern="\d*" placeholder="0"></td>
+        <td>
+          <label class="btn-file">Scatta foto al tachimetro
+            <input type="file" accept="image/*" capture="environment" class="ocr-file" data-target="km_prelievo">
+          </label>
+          <span class="status" id="st_km_prelievo"></span>
+        </td>
+      </tr>
+      <tr data-fase="arrivo">
+        <td>Arrivo a destinazione</td>
+        <td><input type="text" name="loc_arrivo"></td>
+        <td><input type="time" name="ora_arrivo"></td>
+        <td><input type="text" class="km-input" id="km_arrivo" inputmode="numeric" pattern="\d*" placeholder="0"></td>
+        <td>
+          <label class="btn-file">Scatta foto al tachimetro
+            <input type="file" accept="image/*" capture="environment" class="ocr-file" data-target="km_arrivo">
+          </label>
+          <span class="status" id="st_km_arrivo"></span>
+        </td>
+      </tr>
+      <tr data-fase="rientro_partenza">
+        <td>Partenza per rientro</td>
+        <td><input type="text" name="loc_rientro_partenza"></td>
+        <td><input type="time" name="ora_rientro_partenza"></td>
+        <td><input type="text" class="km-input" id="km_rientro_partenza" inputmode="numeric" pattern="\d*" placeholder="0"></td>
+        <td>
+          <label class="btn-file">Scatta foto al tachimetro
+            <input type="file" accept="image/*" capture="environment" class="ocr-file" data-target="km_rientro_partenza">
+          </label>
+          <span class="status" id="st_km_rientro_partenza"></span>
+        </td>
+      </tr>
+      <tr data-fase="scarico">
+        <td>Scarico ultimo trasportato</td>
+        <td><input type="text" name="loc_scarico"></td>
+        <td><input type="time" name="ora_scarico"></td>
+        <td><input type="text" class="km-input" id="km_scarico" inputmode="numeric" pattern="\d*" placeholder="0"></td>
+        <td>
+          <label class="btn-file">Scatta foto al tachimetro
+            <input type="file" accept="image/*" capture="environment" class="ocr-file" data-target="km_scarico">
+          </label>
+          <span class="status" id="st_km_scarico"></span>
+        </td>
+      </tr>
+      <tr data-fase="rientro">
+        <td>Rientro mezzo</td>
+        <td><input type="text" name="loc_rientro"></td>
+        <td><input type="time" name="ora_rientro"></td>
+        <td><input type="text" class="km-input" id="km_rientro" inputmode="numeric" pattern="\d*" placeholder="0"></td>
+        <td>
+          <label class="btn-file">Scatta foto al tachimetro
+            <input type="file" accept="image/*" capture="environment" class="ocr-file" data-target="km_rientro">
+          </label>
+          <span class="status" id="st_km_rientro"></span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totale-wrap">
+    <div class="totale-box">
+      <span>TOTALE KM PERCORSI</span>
+      <input type="number" id="totale_km" value="0" readonly>
+    </div>
+
+  <div class="fasi-scelta" role="radiogroup" aria-label="Fasi">
+    <strong>FASI:</strong>
+    <label><input type="radio" name="fase_tipo" value="solo_andata"> ANDATA</label>
+    <label><input type="radio" name="fase_tipo" value="andata_ritorno"> ANDATA / RITORNO</label>
+    <label><input type="radio" name="fase_tipo" value="solo_ritorno"> RITORNO</label>
+  </div>
+
+ </div>
+
+  <!-- Firma + timbro -->
+<div class="firma-area firma-blocco-2">
+<div class="firma-wrap" id="firma_wrap">
+      <!-- Canvas in primo piano: permette firma sopra timbro -->
+      <canvas id="firma_canvas"></canvas>
+      <!-- Timbro sotto di default -->
+      <img id="timbro_overlay" alt="Timbro">
+    </div>
+    <div class="firma-tools">
+      <button type="button" class="btn" id="firma_clear">Cancella firma</button>
+      <label class="btn">Carica timbro
+        <input type="file" id="timbro_file" accept="image/*">
+      </label>
+      <button type="button" class="btn" id="bring_signature_top">Sovrapponi firma</button>
+      <button type="button" class="btn" id="bring_stamp_top">Sovrapponi timbro</button>
+      <button type="button" class="btn" id="toggle_advanced">Modifiche impostazioni</button>
+    </div>
+
+    <div id="timbro_controls" hidden>
+      <div class="ctrl">
+        <button type="button" class="btn" id="center_stamp" title="Centra">Centra</button>
+      </div>
+      <div class="ctrl">
+        <button type="button" class="btn" id="rotate_90" title="Ruota 90°">Ruota 90°</button>
+      </div>
+      <div class="ctrl">
+        <label>Rotazione
+          <input type="range" id="rotate_range" min="-180" max="180" value="0">
+        </label>
+      </div>
+      <div class="ctrl">
+        <label>Scala
+          <input type="range" id="scale_range" min="0.3" max="4.0" step="0.05" value="1">
+        </label>
+      </div>
+      <div class="ctrl">
+        <button type="button" class="btn" id="flip_hv" title="Inverti orientamento">V/H</button>
+      </div>
+      <div class="ctrl">
+        <button type="button" class="btn" id="remove_stamp" title="Rimuovi timbro">Rimuovi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Note -->
+  <div class="note-box">
+    <div class="note-head">Note</div>
+    <div class="note-body">
+      <textarea name="note_finali" placeholder="Annotazioni, indicazioni particolari, ecc."></textarea>
+    </div>
+  </div>
+</section>
+
+<!-- Libreria OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script>
+  // Utilità
+  const onlyDigits = s => (s || '').replace(/\D+/g, '');
+  const kmIds = ['km_partenza','km_prelievo','km_arrivo','km_rientro_partenza','km_scarico','km_rientro'];
+
+  // KM: filtro numerico + totale in tempo reale (somma differenze positive tra fasi consecutive)
+  function bindKmFilteringAndTotal() {
+    document.querySelectorAll('#fasi-trasporto .km-input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const filtered = onlyDigits(inp.value);
+        if (inp.value !== filtered) inp.value = filtered;
+        calcTotaleKm();
+      });
+      inp.addEventListener('blur', () => {
+        inp.value = onlyDigits(inp.value).replace(/^0+(?=\d)/,'');
+        calcTotaleKm();
+      });
+    });
+  }
+
+  function calcTotaleKm() {
+    let prev = null, total = 0;
+    kmIds.forEach(id => {
+      const el = document.getElementById(id);
+      const s = onlyDigits(el?.value);
+      if (s !== '') {
+        const v = Number(s);
+        if (prev !== null && v - prev > 0) total += (v - prev);
+        prev = v;
+      }
+    });
+    document.getElementById('totale_km').value = total;
+  }
+
+  // OCR robusto: ritaglio centrale + fallback all'immagine intera, filtro 4–6 cifre
+  async function ocrToKm(file, statusEl) {
+    statusEl.textContent = 'Elaborazione...';
+    statusEl.classList.remove('ok','err');
+
+    try {
+      const img = await fileToImage(file);
+
+      // 1) Tenta sul ritaglio centrale (focalizzato)
+      const cropCanvas = cropAndBinarize(img, 0.4, 0.22, 140);
+      let text = (await Tesseract.recognize(cropCanvas, 'eng')).data.text || '';
+      let km = pickBestKm(text);
+
+      // 2) Fallback: tutta l'immagine ridotta e binarizzata
+      if (!km) {
+        const fullCanvas = scaleAndBinarize(img, 1600, 1200, 150);
+        text = (await Tesseract.recognize(fullCanvas, 'eng')).data.text || '';
+        km = pickBestKm(text);
+      }
+
+      if (!km) {
+        statusEl.textContent = 'Nessun KM rilevato';
+        statusEl.classList.add('err');
+        return '';
+      }
+
+      statusEl.textContent = 'OK';
+      statusEl.classList.add('ok');
+      return km;
+    } catch(e) {
+      statusEl.textContent = 'Errore OCR';
+      statusEl.classList.add('err');
+      return '';
+    }
+  }
+
+  function pickBestKm(text){
+    const matches = (text || '').match(/\b\d{4,6}\b/g) || [];
+    if (!matches.length) return '';
+    // preferisci la sequenza più lunga e numericamente più grande (tipico degli odometri)
+    matches.sort((a,b) => (b.length - a.length) || (parseInt(b,10) - parseInt(a,10)));
+    return matches[0];
+  }
+
+  function fileToImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  function cropAndBinarize(img, relW, relH, threshold){
+    const w = img.width, h = img.height;
+    const cw = Math.floor(w * relW);
+    const ch = Math.floor(h * relH);
+    const cx = Math.floor((w - cw)/2);
+    const cy = Math.floor((h - ch)/2);
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    c.width = cw; c.height = ch;
+    ctx.drawImage(img, cx, cy, cw, ch, 0, 0, cw, ch);
+    binarizeCanvas(ctx, cw, ch, threshold);
+    return c;
+  }
+
+  function scaleAndBinarize(img, maxW, maxH, threshold){
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    let w = img.width, h = img.height;
+    const s = Math.min(1, maxW/w, maxH/h);
+    w = Math.round(w*s); h = Math.round(h*s);
+    c.width = w; c.height = h;
+    ctx.drawImage(img, 0, 0, w, h);
+    binarizeCanvas(ctx, w, h, threshold);
+    return c;
+  }
+
+  function binarizeCanvas(ctx, w, h, threshold){
+    const imgData = ctx.getImageData(0,0,w,h);
+    const d = imgData.data;
+    for(let i=0;i<d.length;i+=4){
+      const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      const v = g > threshold ? 255 : 0;
+      d[i]=d[i+1]=d[i+2]=v; d[i+3]=255;
+    }
+    ctx.putImageData(imgData,0,0);
+  }
+
+  // Collega input file OCR alle rispettive celle KM
+  function bindOcrInputs() {
+    document.querySelectorAll('#fasi-trasporto .ocr-file').forEach(inp => {
+      inp.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const targetId = e.target.dataset.target;
+        const kmInput = document.getElementById(targetId);
+        const statusEl = document.getElementById('st_' + targetId);
+        const digits = await ocrToKm(file, statusEl);
+        if (digits) {
+          kmInput.value = digits.replace(/^0+(?=\d)/,'');
+          calcTotaleKm();
+        }
+      });
+    });
+  }
+
+  // Firma su canvas (mouse + touch), canvas sopra il timbro
+  function setupFirma() {
+    const canvas = document.getElementById('firma_canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(rect.width * ratio);
+      canvas.height = Math.floor(rect.height * ratio);
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.scale(ratio, ratio);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2.5;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    let drawing = false;
+    let last = null;
+
+    const pos = (ev) => {
+      const r = canvas.getBoundingClientRect();
+      const p = ev.touches ? ev.touches[0] : ev;
+      return { x: p.clientX - r.left, y: p.clientY - r.top };
+    };
+
+    const start = (ev) => { ev.preventDefault(); drawing = true; last = pos(ev); ctx.beginPath(); ctx.moveTo(last.x, last.y); };
+    const move = (ev) => {
+      if (!drawing) return;
+      ev.preventDefault();
+      const p = pos(ev);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    };
+    const end = () => { drawing = false; };
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    canvas.addEventListener('mouseup', end);
+    canvas.addEventListener('mouseleave', end);
+    canvas.addEventListener('touchstart', start, { passive:false });
+    canvas.addEventListener('touchmove', move, { passive:false });
+    canvas.addEventListener('touchend', end);
+
+    document.getElementById('firma_clear').addEventListener('click', () => {
+      const r = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, r.width, r.height);
+    });
+  }
+
+  // Timbro overlay: carica, trascina, ruota, scala. Firma sopra/timbro sopra a scelta.
+  function setupTimbro() {
+    const wrap = document.getElementById('firma_wrap');
+    const img = document.getElementById('timbro_overlay');
+    const file = document.getElementById('timbro_file');
+    const btnToggle = document.getElementById('toggle_advanced');
+    const controls = document.getElementById('timbro_controls');
+
+    const rotate90 = document.getElementById('rotate_90');
+    const rotateRange = document.getElementById('rotate_range');
+    const scaleRange = document.getElementById('scale_range');
+    const flipHV = document.getElementById('flip_hv');
+    const centerBtn = document.getElementById('center_stamp');
+    const removeBtn = document.getElementById('remove_stamp');
+    const bringSig = document.getElementById('bring_signature_top');
+    const bringStamp = document.getElementById('bring_stamp_top');
+
+    let state = { x:50, y:50, rot:0, scale:2.5, flip:false };
+
+    // Carica timbro
+    file.addEventListener('change', () => {
+      const f = file.files?.[0];
+      if (!f) return;
+      img.onload = () => { img.style.display = 'block'; applyTransform(); };
+      img.src = URL.createObjectURL(f);
+      state = { x:50, y:50, rot:0, scale:2.5, flip:false };
+      rotateRange.value = 0; scaleRange.value = 2.5;
+    });
+
+    // Mostra/nasconde controlli avanzati
+    btnToggle.addEventListener('click', () => {
+      controls.hidden = !controls.hidden;
+    });
+
+    // Drag timbro
+    let dragging = false;
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+    function posFromEvent(e) {
+      const rect = wrap.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      let x = ((p.clientX - rect.left)/rect.width)*100;
+      let y = ((p.clientY - rect.top)/rect.height)*100;
+      return { x: clamp(x, 5, 95), y: clamp(y, 5, 95) };
+    }
+    img.addEventListener('mousedown', (e)=>{ e.preventDefault(); dragging = true; const p = posFromEvent(e); state.x=p.x; state.y=p.y; applyTransform(); });
+    window.addEventListener('mousemove', (e)=>{ if(!dragging) return; e.preventDefault(); const p = posFromEvent(e); state.x=p.x; state.y=p.y; applyTransform(); });
+    window.addEventListener('mouseup', ()=> dragging=false);
+    img.addEventListener('touchstart', (e)=>{ e.preventDefault(); dragging = true; const p = posFromEvent(e); state.x=p.x; state.y=p.y; applyTransform(); }, { passive:false });
+    window.addEventListener('touchmove', (e)=>{ if(!dragging) return; e.preventDefault(); const p = posFromEvent(e); state.x=p.x; state.y=p.y; applyTransform(); }, { passive:false });
+    window.addEventListener('touchend', ()=> dragging=false);
+
+    // Controlli
+    centerBtn.addEventListener('click', ()=>{ state.x=50; state.y=50; applyTransform(); });
+    removeBtn.addEventListener('click', ()=>{ img.style.display='none'; img.src=''; });
+    rotate90.addEventListener('click', ()=>{ state.rot = (state.rot + 90) % 360; rotateRange.value = state.rot; applyTransform(); });
+    rotateRange.addEventListener('input', ()=>{ state.rot = Number(rotateRange.value); applyTransform(); });
+    scaleRange.addEventListener('input', ()=>{ state.scale = Number(scaleRange.value); applyTransform(); });
+    flipHV.addEventListener('click', ()=>{ state.flip = !state.flip; applyTransform(); });
+
+    bringSig.addEventListener('click', ()=>{ document.getElementById('timbro_overlay').style.zIndex = 1; document.getElementById('firma_canvas').style.zIndex = 2; });
+    bringStamp.addEventListener('click', ()=>{ document.getElementById('timbro_overlay').style.zIndex = 2; document.getElementById('firma_canvas').style.zIndex = 1; });
+
+    function applyTransform(){
+      const flipX = state.flip ? -1 : 1;
+      img.style.left = state.x + '%';
+      img.style.top = state.y + '%';
+      img.style.transform = `translate(-50%,-50%) rotate(${state.rot}deg) scale(${flipX * state.scale}, ${state.scale})`;
+    }
+  }
+
+  // OCR binding
+  function initOcrBinding(){
+    bindOcrInputs();
+  }
+
+  // Avvio
+  document.addEventListener('DOMContentLoaded', () => {
+    bindKmFilteringAndTotal();
+    initOcrBinding();
+    setupFirma();
+    setupTimbro();
+    calcTotaleKm();
+  });
+
+</script>
+
+<!-- BOTTONE CONVALIDA (se già lo hai, lascia il tuo; l'importante è che esista btn_convalida) -->
+
+
+
+
+<div id="convalida_wrap" style="margin-top:10px;">
+  <button type="button" id="btn_convalida" class="btn">Convalida</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  const btn = document.getElementById('btn_convalida');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+
+    const wrap   = document.getElementById('firma_wrap');
+    const canvas = document.getElementById('firma_canvas');
+    const timbro = document.getElementById('timbro_overlay');
+
+    if (!wrap || !canvas) return;
+
+    const rect  = wrap.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+
+    // Canvas finale = fotografia esatta del display
+    const merged = document.createElement('canvas');
+    merged.width  = Math.round(rect.width * ratio);
+    merged.height = Math.round(rect.height * ratio);
+
+    const ctx = merged.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(ratio, ratio);
+
+    // 1️⃣ Disegna timbro ESATTAMENTE dov’è (se presente)
+    if (timbro && timbro.src && timbro.style.display !== 'none') {
+      const tRect = timbro.getBoundingClientRect();
+      ctx.drawImage(
+        timbro,
+        tRect.left - rect.left,
+        tRect.top  - rect.top,
+        tRect.width,
+        tRect.height
+      );
+    }
+
+    // 2️⃣ Disegna firma sopra
+    ctx.drawImage(canvas, 0, 0, rect.width, rect.height);
+
+    // 3️⃣ Sostituzione invisibile
+    canvas.replaceWith(merged);
+    if (timbro) timbro.remove();
+
+    merged.style.width  = '100%';
+    merged.style.height = '100%';
+    merged.style.pointerEvents = 'none';
+
+    // 4️⃣ Blocca strumenti (stato definitivo)
+    document.querySelector('#fasi-trasporto .firma-tools')?.remove();
+    document.getElementById('timbro_controls')?.remove();
+    document.getElementById('convalida_wrap')?.remove();
+
+  });
+
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<section id="equipaggio" class="modulo" style="margin-top:24px;">
+  <style>
+    #equipaggio .titolo {
+      text-align:center;
+      font-weight:700;
+      font-size:20px;
+      margin-bottom:6px;
+    }
+
+    #equipaggio table {
+      width:100%;
+      border-collapse:collapse;
+    }
+
+    #equipaggio th,
+    #equipaggio td {
+      border:1px solid #000;
+      padding:6px;
+      font-size:13px;
+      vertical-align:top;
+    }
+
+    #equipaggio th {
+      background:#e0e0e0;
+      text-align:center;
+    }
+
+    #equipaggio input[type="text"] {
+      width:100%;
+      padding:4px;
+      box-sizing:border-box;
+    }
+
+    /* Colonne */
+    #equipaggio td.qualifica-cell { width:15%; }
+    #equipaggio td.nome-cell      { width:25%; }
+    #equipaggio td.ente-cell      { width:20%; }
+    #equipaggio td.firma-cell     { width:35%; position:relative; }
+
+    /* === CANVAS FIRMA === */
+    #equipaggio .firma-canvas {
+      width:100%;
+      height:45px; /* ⬅️ MODIFICA QUI (es. 100px) */
+      border:1px solid #999;
+      background:#f0f8ff;
+      cursor:crosshair;
+      display:block;
+      touch-action:none;
+    }
+
+    #equipaggio .clear-firma-btn {
+      position:absolute;
+      top:2px;
+      right:2px;
+      background:#0077cc;
+      color:#fff;
+      border:none;
+      font-size:12px;
+      padding:2px 6px;
+      cursor:pointer;
+    }
+
+    #equipaggio .remove-btn {
+      background:#c00;
+      color:#fff;
+      border:none;
+      padding:4px 8px;
+      cursor:pointer;
+      font-size:12px;
+    }
+
+    #equipaggio .controls {
+      margin-top:10px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+  </style>
+
+  <div class="titolo">EQUIPAGGIO</div>
+
+  <table id="equipaggio_table">
+    <thead>
+      <tr>
+        <th>QUALIFICA</th>
+        <th>COGNOME E NOME</th>
+        <th>ENTE APPARTENENZA</th>
+        <th>FIRMA</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-role="AUTISTA">
+        <td class="qualifica-cell">
+          <input type="text" value="AUTISTA" readonly>
+        </td>
+        <td class="nome-cell">
+          <input type="text" name="nome_autista">
+        </td>
+        <td class="ente-cell">
+          <input type="text" value="" readonly>
+        </td>
+        <td class="firma-cell">
+          <canvas class="firma-canvas" data-id="autista"></canvas>
+          <button type="button" class="clear-firma-btn">🗑</button>
+        </td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="controls">
+    <label>N. SOCCORRITORI:</label>
+    <select id="num_soccorritori">
+      <option value="0">0</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+    </select>
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  /* ===============================
+     LETTURA ENTE DA LOCAL STORAGE
+  =============================== */
+  let enteNome = "C.Misericordia";
+
+  const raw = localStorage.getItem("IMPOSTAZIONI_MISERICORDIA");
+  if (raw) {
+    try {
+      const cfg = JSON.parse(raw);
+      if (cfg?.ente?.nome) enteNome = cfg.ente.nome;
+    } catch(e){}
+  }
+
+  document.querySelector('#equipaggio .ente-cell input').value = enteNome;
+
+  const tableBody = document.querySelector('#equipaggio_table tbody');
+  const selectNum = document.getElementById('num_soccorritori');
+  const firme = {};
+  let soccorritori = 0;
+
+  /* ===============================
+     FIRMA CANVAS
+  =============================== */
+  function initFirma(canvas, clearBtn, id) {
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+
+    function resize() {
+      const r = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width  = r.width  * dpr;
+      canvas.height = r.height * dpr;
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.scale(dpr, dpr);
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (firme[id]) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img,0,0,r.width,r.height);
+        img.src = firme[id];
+      }
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+
+    const pos = e => {
+      const rect = canvas.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return { x:p.clientX-rect.left, y:p.clientY-rect.top };
+    };
+
+    canvas.addEventListener('mousedown', e => {
+      drawing=true;
+      const p=pos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x,p.y);
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      if(!drawing) return;
+      const p=pos(e);
+      ctx.lineTo(p.x,p.y);
+      ctx.stroke();
+    });
+
+    window.addEventListener('mouseup', ()=> {
+      if(drawing){
+        drawing=false;
+        firme[id]=canvas.toDataURL();
+      }
+    });
+
+    canvas.addEventListener('touchstart', e=>{
+      e.preventDefault();
+      drawing=true;
+      const p=pos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x,p.y);
+    },{passive:false});
+
+    canvas.addEventListener('touchmove', e=>{
+      e.preventDefault();
+      if(!drawing) return;
+      const p=pos(e);
+      ctx.lineTo(p.x,p.y);
+      ctx.stroke();
+    },{passive:false});
+
+    canvas.addEventListener('touchend', ()=>{
+      if(drawing){
+        drawing=false;
+        firme[id]=canvas.toDataURL();
+      }
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      delete firme[id];
+    });
+  }
+
+  initFirma(
+    document.querySelector('.firma-canvas'),
+    document.querySelector('.clear-firma-btn'),
+    'autista'
+  );
+
+  /* ===============================
+     SOCCORRITORI DINAMICI
+  =============================== */
+  function addSoccorritore(i){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="qualifica-cell"><input type="text" value="SOCCORRITORE ${i}" readonly></td>
+      <td class="nome-cell"><input type="text"></td>
+      <td class="ente-cell"><input type="text" value="${enteNome}" readonly></td>
+      <td class="firma-cell">
+        <canvas class="firma-canvas" data-id="soc_${i}"></canvas>
+        <button type="button" class="clear-firma-btn">🗑</button>
+      </td>
+      <td><button type="button" class="remove-btn">🗑</button></td>
+    `;
+    tableBody.appendChild(tr);
+
+    initFirma(
+      tr.querySelector('canvas'),
+      tr.querySelector('.clear-firma-btn'),
+      `soc_${i}`
+    );
+
+    tr.querySelector('.remove-btn').onclick=()=>{
+      delete firme[`soc_${i}`];
+      tr.remove();
+      soccorritori--;
+      selectNum.value=soccorritori;
+    };
+  }
+
+  selectNum.addEventListener('change',()=>{
+    const n=parseInt(selectNum.value);
+    while(soccorritori<n){
+      soccorritori++;
+      addSoccorritore(soccorritori);
+    }
+  });
+
+});
+</script>
+
+
+
+
+
+
+
+
+
+<section id="motivo_prelievo" class="modulo" style="margin-top:24px;">
+  <style>
+    #motivo_prelievo .container {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    #motivo_prelievo .colonna {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* ===== TITOLO VERTICALE LEGGIBILE ===== */
+    #motivo_prelievo .titolo-verticale {
+      writing-mode: vertical-lr;      /* alto → basso */
+      text-orientation: upright;      /* lettere dritte */
+      font-weight: 700;
+      font-size: 14px;
+      padding: 4px 4px;
+      border-left: 2px solid #000;
+      border-right: 2px solid #000;
+      background: #e0e0e0;
+      text-align: center;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.1;
+    }
+
+    .caselle-riga {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .casella-check {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #f9f9f9;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .casella-check.checked {
+      background: #d4edda;
+      border-color: #28a745;
+      color: #155724;
+    }
+
+    .casella-check .checkmark {
+      margin-left: 6px;
+      font-size: 14px;
+      visibility: hidden;
+    }
+
+    .casella-check.checked .checkmark {
+      visibility: visible;
+    }
+
+    .casella-input {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .casella-input input {
+      max-width: 260px;
+      padding: 4px;
+      font-size: 18px;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+    }
+  </style>
+
+  <div class="container">
+
+    <!-- COLONNA SINISTRA -->
+    <div class="colonna">
+      <div class="caselle-riga">
+        <div class="casella-check">Cod. BIANCO <span class="checkmark">✅</span></div>
+        <div class="casella-check">Cod. VERDE <span class="checkmark">✅</span></div>
+        <div class="casella-check">Cod. GIALLO <span class="checkmark">✅</span></div>
+        <div class="casella-check">Cod. ROSSO <span class="checkmark">✅</span></div>
+      </div>
+
+      <div class="caselle-riga">
+        <div class="casella-check">Equipe Medica a Bordo <span class="checkmark">✅</span></div>
+        <div class="casella-check">Incidente <span class="checkmark">✅</span></div>
+        <div class="casella-check">Malore <span class="checkmark">✅</span></div>
+      </div>
+
+      <div class="casella-input">
+        Codice di rientro:
+        <input type="text" name="codice_rientro" placeholder="Scrivi qui">
+      </div>
+    </div>
+
+    <!-- TITOLO CENTRALE VERTICALE -->
+    <div class="titolo-verticale motivo-blocco-4">
+      MOTIVO<br>DEL<br>PRELIEVO
+    </div>
+
+    <!-- COLONNA DESTRA -->
+    <div class="colonna">
+      <div class="caselle-riga">
+        <div class="casella-check">Visita / Esame <span class="checkmark">✅</span></div>
+        <div class="casella-check">Emodialisi <span class="checkmark">✅</span></div>
+        <div class="casella-check">Terapie <span class="checkmark">✅</span></div>
+      </div>
+
+      <div class="caselle-riga">
+        <div class="casella-check">Ricovero <span class="checkmark">✅</span></div>
+        <div class="casella-check">Dimissioni <span class="checkmark">✅</span></div>
+        <div class="casella-check">Trasferimento <span class="checkmark">✅</span></div>
+      </div>
+
+      <div class="caselle-riga">
+        <div class="casella-check">Manifestazione <span class="checkmark">✅</span></div>
+        <div class="casella-check">Servizio sede <span class="checkmark">✅</span></div>
+      </div>
+
+      <div class="casella-input">
+        Altro:
+        <input type="text" name="altro_descrizione" placeholder="Scrivi qui">
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document
+    .querySelectorAll('#motivo_prelievo .casella-check')
+    .forEach(el => {
+      el.addEventListener('click', () => {
+        el.classList.toggle('checked');
+      });
+    });
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+<section id="rifiuto_ricovero" class="modulo" style="margin-top:24px;">
+  <style>
+    #rifiuto_ricovero .titolo {
+      text-align:center;
+      font-weight:700;
+      font-size:20px;
+      margin-bottom:6px;
+    }
+    #rifiuto_ricovero table {
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+    }
+    #rifiuto_ricovero th,
+    #rifiuto_ricovero td {
+      border:1px solid #000;
+      padding:6px;
+      font-size:13px;
+      vertical-align:top;
+    }
+    #rifiuto_ricovero th {
+      background:#e0e0e0;
+      text-align:center;
+    }
+
+    /* checkbox sempre visibili */
+    #rifiuto_ricovero input[type="checkbox"] {
+      width:18px;
+      height:18px;
+      min-width:18px;
+      min-height:18px;
+      accent-color:#000;
+      cursor:pointer;
+    }
+
+    .firma-wrapper {
+      position:relative;
+      width:100%;
+      flex:1;
+    }
+
+    .firma-canvas {
+      width:98%;
+      height:50px;
+      border:1px solid #999;
+      background:#f0f8ff;
+      cursor:crosshair;
+      display:block;
+      border-radius:4px;
+      touch-action:none;
+      user-select:none;
+    }
+
+    .clear-firma-btn {
+      position:absolute;
+      top:6px;
+      right:6px;
+      background:#0077cc;
+      color:#fff;
+      border:none;
+      padding:2px 6px;
+      font-size:12px;
+      cursor:pointer;
+      border-radius:4px;
+      z-index:2;
+    }
+
+    .riga-dati {
+      display:grid;
+      grid-template-columns:1fr 120px;
+      gap:6px;
+      margin-bottom:6px;
+    }
+    .riga-indirizzo {
+      display:grid;
+      grid-template-columns:1fr 1fr 120px;
+      gap:6px;
+    }
+    .dati-cell input[type="text"],
+    .dati-cell select {
+      width:100%;
+      padding:4px;
+      box-sizing:border-box;
+      font-size:13px;
+    }
+
+    tr.hidden-row { display:none; }
+
+    .rifiuto-firma-wrap {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      max-height:70px;
+      overflow:hidden;
+    }
+
+    .rifiuto-verticale {
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      font-size:12px;
+      line-height:1.1;
+      white-space:nowrap;
+    }
+
+    .sanificazione-wrap {
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .sanificazione-check {
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      font-weight:600;
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .sanificazione-nome {
+      width:220px;
+    }
+
+    .sanificazione-nome input {
+      width:100%;
+      padding:4px;
+      font-size:13px;
+      box-sizing:border-box;
+    }
+  </style>
+
+  <div class="titolo">RIFIUTO RICOVERO E SANIFICAZIONE</div>
+
+  <table>
+    <colgroup>
+      <col style="width:50%">
+      <col style="width:50%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>RIFIUTO & FIRMA PZ</th>
+        <th>DATI PAZIENTE</th>
+      </tr>
+    </thead>
+
+    <tbody id="tbody_rifiuti">
+
+      <!-- PAZIENTE 1 -->
+      <tr class="riga-paziente" data-index="1">
+        <td class="firma-cell">
+          <div class="rifiuto-firma-wrap firma-blocco-5">
+            <div class="rifiuto-verticale">
+              <input type="checkbox" name="rifiuto_pt1">
+              <span>RIFIUTO</span>
+              <span>RICOVERO</span>
+            </div>
+            <div class="firma-wrapper">
+              <canvas class="firma-canvas" id="firma_pt1"></canvas>
+              <button type="button" class="clear-firma-btn" data-target="firma_pt1">🗑</button>
+            </div>
+          </div>
+        </td>
+        <td class="dati-cell">
+          <div class="riga-dati">
+            <input type="text" name="nome_pt1" placeholder="Nome e Cognome">
+            <select name="sesso_pt1">
+              <option value="">Sesso</option>
+              <option value="M">Maschio</option>
+              <option value="F">Femmina</option>
+            </select>
+          </div>
+          <div class="riga-indirizzo">
+            <input type="text" name="citta_pt1" placeholder="Città">
+            <input type="text" name="via_pt1" placeholder="Via/Piazza">
+            <input type="text" name="civico_pt1" placeholder="N. Civico">
+          </div>
+        </td>
+      </tr>
+
+      <!-- PAZIENTE 2 -->
+      <tr class="riga-paziente" data-index="2">
+        <td class="firma-cell">
+          <div class="rifiuto-firma-wrap firma-blocco-5">
+            <div class="rifiuto-verticale">
+              <input type="checkbox" name="rifiuto_pt2">
+              <span>RIFIUTO</span>
+              <span>RICOVERO</span>
+            </div>
+            <div class="firma-wrapper">
+              <canvas class="firma-canvas" id="firma_pt2"></canvas>
+              <button type="button" class="clear-firma-btn" data-target="firma_pt2">🗑</button>
+            </div>
+          </div>
+        </td>
+        <td class="dati-cell">
+          <div class="riga-dati">
+            <input type="text" name="nome_pt2" placeholder="Nome e Cognome">
+            <select name="sesso_pt2">
+              <option value="">Sesso</option>
+              <option value="M">Maschio</option>
+              <option value="F">Femmina</option>
+            </select>
+          </div>
+          <div class="riga-indirizzo">
+            <input type="text" name="citta_pt2" placeholder="Città">
+            <input type="text" name="via_pt2" placeholder="Via/Piazza">
+            <input type="text" name="civico_pt2" placeholder="N. Civico">
+          </div>
+        </td>
+      </tr>
+
+      <!-- PAZIENTE 3 -->
+      <tr class="riga-paziente" data-index="3">
+        <td class="firma-cell">
+          <div class="rifiuto-firma-wrap firma-blocco-5">
+            <div class="rifiuto-verticale">
+              <input type="checkbox" name="rifiuto_pt3">
+              <span>RIFIUTO</span>
+              <span>RICOVERO</span>
+            </div>
+            <div class="firma-wrapper">
+              <canvas class="firma-canvas" id="firma_pt3"></canvas>
+              <button type="button" class="clear-firma-btn" data-target="firma_pt3">🗑</button>
+            </div>
+          </div>
+        </td>
+        <td class="dati-cell">
+          <div class="riga-dati">
+            <input type="text" name="nome_pt3" placeholder="Nome e Cognome">
+            <select name="sesso_pt3">
+              <option value="">Sesso</option>
+              <option value="M">Maschio</option>
+              <option value="F">Femmina</option>
+            </select>
+          </div>
+          <div class="riga-indirizzo">
+            <input type="text" name="citta_pt3" placeholder="Città">
+            <input type="text" name="via_pt3" placeholder="Via/Piazza">
+            <input type="text" name="civico_pt3" placeholder="N. Civico">
+          </div>
+        </td>
+      </tr>
+
+      <!-- SANIFICAZIONE -->
+
+<!-- SANIFICAZIONE -->
+<tr class="riga-sanificazione">
+  <td class="firma-cell" colspan="2">
+    <div class="sanificazione-wrap">
+      <div class="sanificazione-check">
+        <label><input type="checkbox" name="sanificazione_mezzo"> Sanificazione Mezzo</label>
+        <label><input type="checkbox" name="sanificazione_attrezzature"> Sanificazione Attrezzature</label>
+      </div>
+      <div class="firma-wrapper">
+        <canvas class="firma-canvas" id="firma_sanificazione"></canvas>
+        <button type="button" class="clear-firma-btn" data-target="firma_sanificazione">🗑</button>
+      </div>
+      <div class="sanificazione-nome">
+        <input type="text" name="nome_esecutore_sanificazione" placeholder="Nome e Cognome Esecutore">
+      </div>
+    </div>
+  </td>
+</tr>
+
+
+    </tbody>
+  </table>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  const numeroAssistiti = document.getElementById('numero_assistiti');
+  const righe = Array.from(document.querySelectorAll('#tbody_rifiuti tr.riga-paziente'));
+
+  function syncRighe() {
+    const n = numeroAssistiti?.value ? parseInt(numeroAssistiti.value,10) : 0;
+    righe.forEach((tr,i) => {
+      tr.classList.toggle('hidden-row', n && i >= n);
+      tr.querySelectorAll('canvas').forEach(c => c._resize && c._resize());
+    });
+  }
+  syncRighe();
+  numeroAssistiti?.addEventListener('change', syncRighe);
+
+  document.querySelectorAll('#rifiuto_ricovero canvas.firma-canvas').forEach(canvas => {
+
+    const ctx = canvas.getContext('2d');
+    const btn = document.querySelector(`.clear-firma-btn[data-target="${canvas.id}"]`);
+    let drawing = false;
+    let hasDrawn = false;
+    let saveTimer = null;
+
+    function saveSoon() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        try { localStorage.setItem(canvas.id, canvas.toDataURL('image/png')); } catch(e){}
+      }, 500);
+    }
+
+    function resize() {
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const ratio = window.devicePixelRatio || 1;
+      const snapshot = hasDrawn ? canvas.toDataURL('image/png') : null;
+
+      canvas.width = Math.round(r.width * ratio);
+      canvas.height = Math.round(r.height * ratio);
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.scale(ratio,ratio);
+      ctx.lineCap='round';
+      ctx.lineJoin='round';
+      ctx.strokeStyle='#000';
+      ctx.lineWidth=2;
+
+      if (snapshot) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img,0,0,r.width,r.height);
+        img.src = snapshot;
+      }
+    }
+    canvas._resize = resize;
+    resize();
+    window.addEventListener('resize', resize);
+
+    const saved = localStorage.getItem(canvas.id);
+    if (saved) {
+      const img = new Image();
+      img.onload = () => {
+        hasDrawn = true;
+        ctx.drawImage(img,0,0,canvas.clientWidth,canvas.clientHeight);
+      };
+      img.src = saved;
+    }
+
+    function pos(e){
+      const r = canvas.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return { x:p.clientX-r.left, y:p.clientY-r.top };
+    }
+
+    function start(e){
+      e.preventDefault();
+      drawing = true;
+      hasDrawn = true;
+      const p = pos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x,p.y);
+    }
+    function move(e){
+      if(!drawing) return;
+      e.preventDefault();
+      const p = pos(e);
+      ctx.lineTo(p.x,p.y);
+      ctx.stroke();
+      saveSoon();
+    }
+    function end(){
+      drawing = false;
+      saveSoon();
+    }
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    canvas.addEventListener('mouseup', end);
+    canvas.addEventListener('mouseleave', end);
+    canvas.addEventListener('touchstart', start, {
+
+passive:false});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    canvas.addEventListener('touchend', end);
+
+    btn?.addEventListener('click', () => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      localStorage.removeItem(canvas.id);
+      hasDrawn = false;
+    });
+
+  });
+
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<!-- =====================================================
+     BLOCCO 5 – TS EMERGENZA (EXPORT + DRAFT) – VERSIONE DEFINITIVA
+===================================================== -->
+
+<section id="modulo_export_finale" style="margin-top:30px;text-align:center;">
+  <style>
+    #modulo_export_finale button{
+      margin:8px auto;
+      padding:12px 20px;
+      font-size:16px;
+      font-weight:600;
+      border:2px solid #000;
+      cursor:pointer;
+      display:block;
+      background:#dff0d8;
+      max-width:320px;
+    }
+  </style>
+
+  <button type="button" id="btn_ts_pdf">📄 ANTEPRIMA PDF 💾</button>
+  <button type="button" id="btn_ts_excel">📊 ANTEPRIMA Excel 💾</button>
+  <button type="button" id="btn_ts_draft">💾 SOSPENDI TEMPORANEAMENTE</button>
+  <button type="button" id="btn_ts_server">📤 CONDIVIDI DOCUMENTI AL SERVER</button>
+</section>
+
+<!-- LIBRERIE -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  /* ===================== COSTANTI ===================== */
+  const DRAFT_KEY = 'TsEmergenza_DRAFT';
+  const FILE_PRE  = 'TsEmergenza';
+
+  let LAST_PDF_BLOB   = null;
+  let LAST_EXCEL_BLOB = null;
+
+  /* ================= RIPRISTINO DRAFT ===================== */
+  const draftRaw = localStorage.getItem(DRAFT_KEY);
+
+  if (draftRaw) {
+    try {
+      const draft = JSON.parse(draftRaw);
+      console.log("🔁 RIPRISTINO TS DRAFT", draft);
+
+      // Ripopola input / select / textarea
+      document.querySelectorAll('input,select,textarea').forEach(el=>{
+        const k = el.name || el.id;
+        if (!k || draft[k] === undefined) return;
+
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          el.checked = !!draft[k];
+        } else {
+          el.value = draft[k];
+        }
+      });
+
+      // Ripristina canvas firme
+     document.querySelectorAll('canvas').forEach(c=>{
+  const key = 'canvas_' + (c.id || c.dataset.id);
+  if (!draft[key]) return;
+
+  const img = new Image();
+  img.onload = () => {
+    // aspetta il layout finale
+    requestAnimationFrame(() => {
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+    });
+  };
+  img.src = draft[key];
+});
+
+    } catch (e) {
+      console.error("❌ Errore ripristino draft TS", e);
+    }
+  }
+
+
+
+  /* ================= PROGRESSIVO ===================== */
+  function confermaProgressivoDefinitivo(){
+    const year = new Date().getFullYear();
+    const key  = "PROGRESSIVO_TS_" + year;
+    const temp = parseInt(sessionStorage.getItem('TS_PROGRESSIVO_TEMP'),10);
+    if (!temp) return;
+    localStorage.setItem(key,temp);
+    sessionStorage.removeItem('TS_PROGRESSIVO_TEMP');
+  }
+
+  /* ================= VALIDAZIONE ===================== */
+  function controllaCodiciFiscaliAssistiti(){
+    const n = parseInt(document.getElementById('numero_assistiti')?.value || '0',10);
+    for(let i=1;i<=n;i++){
+      const cf = document.querySelector(`input[name="assistito${i}_cf"]`);
+      if(cf && cf.value && cf.dataset.valid !== 'true'){
+        alert(`Correggere CF assistito ${i}`);
+        cf.focus();
+        return false;
+      }
+    }
+    return true;
+  }
+  const eseguiConvalida = () => controllaCodiciFiscaliAssistiti();
+
+  /* ================= NOME FILE ===================== */
+
+function getFileNameBase(){
+  const d =
+    document.getElementById('data_servizio')?.value ||
+    new Date().toISOString().slice(0,10);
+
+
+
+  const num    = sessionStorage.getItem("TS_PROGRESSIVO_TEMP") || '0';
+  const tablet = sessionStorage.getItem("TS_TABLET_CODE") || 'X';
+  const isDef  = sessionStorage.getItem("TS_IS_DEFINITIVO") === "1";
+
+  const progressivo = isDef ? (tablet + num) : 'TEST';
+
+  const nome = document.querySelector('[name="assistito1_nome"]')?.value || 'anonimo';
+  const cct  = document.querySelector('[name="assistito1_codice"]')?.value || 'NO-CCT';
+
+  return `${FILE_PRE}_${d}_${progressivo}_${nome}_${cct}`
+    .replace(/[^\w\d]+/g,'_');
+}
+
+
+  /* ================= EXCEL – RIGA UNICA ===================== */
+ function buildExcelRow(){
+  const tablet = sessionStorage.getItem("TS_TABLET_CODE") || "";
+
+  return [{
+    Data: document.getElementById('data_servizio')?.value || '',
+    ID_Tablet: tablet,                                  // 👈 NUOVA COLONNA
+    Numero: document.getElementById('numero_progressivo')?.value || '',
+    Nome: document.querySelector('[name="assistito1_nome"]')?.value || '',
+    Codice_CCT_118_1: document.querySelector('[name="assistito1_codice"]')?.value || '',
+    Codice_CCT_118_2: document.querySelector('[name="assistito2_codice"]')?.value || '',
+    Codice_CCT_118_3: document.querySelector('[name="assistito3_codice"]')?.value || '',
+    KM: document.getElementById('totale_km')?.value || 0
+  }];
+}
+
+  
+  /* ================= INVIO SERVER ===================== */
+async function inviaAlServer(pdfBlob, excelBlob, payload){
+
+  const toBase64 = blob => new Promise(res=>{
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.readAsDataURL(blob);
+  });
+
+  // ➕ AGGIUNGI pdf / excel AL payload ESISTENTE
+  payload.pdf = {
+    name: getFileNameBase() + ".pdf",
+    data: await toBase64(pdfBlob)
+  };
+
+  payload.excel = excelBlob ? {
+    name: getFileNameBase() + ".xlsx",
+    data: await toBase64(excelBlob)
+  } : null;
+
+  console.log("PAYLOAD FINALE INVIATO", payload);
+
+  const res = await fetch('/.netlify/functions/upload-drive',{
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+
+  if(!res.ok) throw new Error('Upload fallito');
+}
+
+
+  /* ================= DRAFT ===================== */
+  function raccogliDatiModulo(){
+    const data={};
+    document.querySelectorAll('input,select,textarea').forEach(el=>{
+      const k=el.name||el.id;
+      if(!k) return;
+      data[k]=(el.type==='checkbox'||el.type==='radio')?el.checked:el.value;
+    });
+    document.querySelectorAll('canvas').forEach(c=>{
+      try{data['canvas_'+(c.id||c.dataset.id)]=c.toDataURL('image/png')}catch(e){}
+    });
+    return data;
+  }
+
+  document.getElementById('btn_ts_draft').onclick=()=>{
+    if(!eseguiConvalida())return;
+    localStorage.setItem(DRAFT_KEY,JSON.stringify(raccogliDatiModulo()));
+    window.location.href='../index.html';
+  };
+
+
+
+
+function applicaPuliziaPDF(root){
+
+  // 1️⃣ Rimuove righe assistiti completamente vuote
+  root.querySelectorAll('.riga-paziente').forEach(riga=>{
+    const hasValue = [...riga.querySelectorAll('input,select,textarea,canvas')]
+      .some(el=>{
+        if(el.tagName === 'CANVAS') return el.toDataURL().length > 2000;
+        if(el.type === 'checkbox' || el.type === 'radio') return el.checked;
+        return el.value && el.value.trim() !== '';
+      });
+
+    if(!hasValue) riga.remove();
+  });
+
+  // 2️⃣ Rimuove blocchi rifiuto ricovero non spuntati
+  root.querySelectorAll('.rifiuto-firma-wrap').forEach(blocco=>{
+    const check = blocco.querySelector('input[type="checkbox"]');
+    if(check && !check.checked) blocco.remove();
+  });
+
+  // 3️⃣ Rimuove sanificazione se totalmente vuota
+  const san = root.querySelector('.riga-sanificazione');
+  if(san){
+    const hasSan = [...san.querySelectorAll('input,canvas')]
+      .some(el=>{
+        if(el.tagName === 'CANVAS') return el.toDataURL().length > 2000;
+        if(el.type === 'checkbox') return el.checked;
+        return el.value && el.value.trim() !== '';
+      });
+    if(!hasSan) san.remove();
+  }
+}
+
+
+
+
+
+
+
+
+function cloneModuliPuliti(){
+  const container = document.createElement('div');
+  container.style.cssText = 'position:absolute;left:0;top:-4000px;width:210mm;background:#fff';
+
+  document.querySelectorAll('section.modulo').forEach(modulo=>{
+
+const clone = modulo.cloneNode(true);
+
+applicaPuliziaPDF(clone);
+
+   
+
+    // Rimuove elementi non stampabili
+    clone.querySelectorAll(
+      'button,.clear-firma-btn,.remove-btn,.controls,#convalida_wrap,input[type=file],input[type=range]'
+    ).forEach(el=>el.remove());
+
+    // CANVAS → IMG
+    const oc = modulo.querySelectorAll('canvas');
+    const cc = clone.querySelectorAll('canvas');
+    oc.forEach((c,i)=>{
+      try{
+        const img = document.createElement('img');
+        img.src = c.toDataURL('image/png');
+        img.style.width = c.getBoundingClientRect().width + 'px';
+        cc[i].replaceWith(img);
+      }catch(e){
+        cc[i]?.remove();
+      }
+    });
+
+    // Disabilita campi
+    clone.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
+
+    container.appendChild(clone);
+  });
+
+  document.body.appendChild(container);
+  return container;
+}
+
+
+
+
+
+
+
+
+
+
+  /* ================= PDF ===================== */
+  document.getElementById('btn_ts_pdf').onclick=async()=>{
+    if(!eseguiConvalida())return;
+   
+    const cont=cloneModuliPuliti();
+    const c=await html2canvas(cont,{scale:4,backgroundColor:'#fff'});
+    const pdf=new window.jspdf.jsPDF('p','mm','a4');
+    pdf.addImage(c.toDataURL('image/jpeg',1),'JPEG',0,0,210,297);
+    pdf.save(getFileNameBase()+'.pdf');
+    cont.remove();
+    localStorage.removeItem(DRAFT_KEY);
+  };
+
+  /* ================= EXCEL LOCALE ===================== */
+  document.getElementById('btn_ts_excel').onclick=()=>{
+    if(!eseguiConvalida())return;
+   
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(buildExcelRow()),'Dati');
+    XLSX.writeFile(wb,getFileNameBase()+'.xlsx');
+    localStorage.removeItem(DRAFT_KEY);
+  };
+
+  /* ================= SERVER ===================== */
+  document.getElementById('btn_ts_server').onclick=async()=>{
+    if(!eseguiConvalida())return;
+
+  // 🔒 BLOCCO SICUREZZA LETTERA TABLET (QUI)
+  const tablet = sessionStorage.getItem("TS_TABLET_CODE");
+  if(!tablet){
+    alert("❌ Lettera tablet mancante. Contattare il Presidente.");
+    return;
+  }
+
+    confermaProgressivoDefinitivo();
+
+    if(!LAST_PDF_BLOB){
+      const cont=cloneModuliPuliti();
+      const c=await html2canvas(cont,{scale:4,backgroundColor:'#fff'});
+      const pdf=new window.jspdf.jsPDF('p','mm','a4');
+      pdf.addImage(c.toDataURL('image/jpeg',1),'JPEG',0,0,210,297);
+      LAST_PDF_BLOB=pdf.output('blob');
+      cont.remove();
+    }
+
+    if(!LAST_EXCEL_BLOB){
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(buildExcelRow()),'Dati');
+      LAST_EXCEL_BLOB=new Blob(
+        [XLSX.write(wb,{bookType:'xlsx',type:'array'})],
+        {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+      );
+    }
+
+// ================= PAYLOAD CONTESTO =================
+const societa = localStorage.getItem("CODICE_SOCIETA"); // es: MIS_OSIMO
+const data_servizio =
+  document.getElementById("data_servizio")?.value ||
+  new Date().toISOString().slice(0,10);
+
+const payload = {
+  societa,
+  modulo: "TS_EMERGENZA",
+  tipo: "TS",
+  data_servizio,
+  deposito_drive: true
+};
+
+// DEBUG
+console.log("UPLOAD CONTEXT", payload);
+window.__lastUploadPayload = payload;
+
+// INVIO
+await inviaAlServer(LAST_PDF_BLOB, LAST_EXCEL_BLOB, payload);
+
+
+alert('✅ Documenti caricati correttamente sul server');
+
+// 🔚 chiusura ciclo: ritorno pagina ponte
+window.location.href = '../index.html';
+
+  };
+});
+
+   
+</script>

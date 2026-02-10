@@ -62,6 +62,17 @@ video{
   background:#000;
 }
 
+/* === CONTENITORE PULSANTI CAMERA === */
+.camera-buttons{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+}
+.camera-buttons button{
+  flex:1;
+  white-space:nowrap;
+}
+
 #log{
   background:#0a0f1a;
   padding:8px;
@@ -92,16 +103,23 @@ video{
     ⚙️ Impostazioni Email & Ente
   </button>
 
+  <!-- Recupera TS -->
+  <button onclick="window.location.href='recupera_ts.html'">
+    🕘 Recupera TS in Sospeso
+  </button>
+
   <!-- Scanner QR -->
   <div class="panel">
     <h3>📷 Scansione QR</h3>
 
     <video id="video" playsinline></video>
 
-    <button id="startBtn">Avvia Camera</button>
-    <button id="stopBtn" disabled>Ferma Camera</button>
-    <button id="torchBtn" disabled>Torcia</button>
-    <button id="retryBtn" disabled>Riprova</button>
+    <div class="camera-buttons">
+      <button id="startBtn"> ▶️ </button>
+      <button id="stopBtn" disabled> ⏹ </button>
+      <button id="torchBtn" disabled> 🔦 </button>
+      <button id="retryBtn" disabled> ↻ </button>
+    </div>
 
     <p class="small">Allinea il QR con la targa dentro l’area video.</p>
   </div>
@@ -112,7 +130,7 @@ video{
     <input type="file" id="fileInput" accept="image/*">
   </div>
 
-  <!-- Manuale -->
+  <!-- Inserimento manuale -->
   <div class="panel">
     <h3>⌨️ Inserisci Targa Manualmente</h3>
     <input id="manualInput" type="text" placeholder="Inserisci targa">
@@ -129,54 +147,36 @@ video{
 </main>
 
 <script>
-/* =====================================================
-   LOGGING
-===================================================== */
 function log(type,msg){
   const box=document.getElementById("log");
   const el=document.createElement("div");
   el.className="log-entry log-"+type;
-  el.textContent = "["+(new Date().toLocaleTimeString())+"] "+msg;
+  el.textContent="["+new Date().toLocaleTimeString()+"] "+msg;
   box.appendChild(el);
-  box.scrollTop = box.scrollHeight;
+  box.scrollTop=box.scrollHeight;
 }
 
-/* =====================================================
-   VARIABILI GLOBALI
-===================================================== */
 let stream=null;
 let track=null;
 let torchOn=false;
 let analyzeLoop=null;
 
-/* =====================================================
-   AVVIO CAMERA
-===================================================== */
 async function startCamera(){
   try{
     log("info","Richiesta permesso camera…");
-    stream = await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode:"environment",
-        width:{ideal:1280},
-        height:{ideal:720}
-      }
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}}
     });
+    const video=document.getElementById("video");
+    video.srcObject=stream;
+    await video.play();
 
-    document.getElementById("video").srcObject = stream;
-    await document.getElementById("video").play();
+    track=stream.getVideoTracks()[0];
+    stopBtn.disabled=false;
+    retryBtn.disabled=false;
 
-    track = stream.getVideoTracks()[0];
-    document.getElementById("stopBtn").disabled=false;
-    document.getElementById("retryBtn").disabled=false;
-
-    log("info","Camera avviata");
-
-    const caps = track.getCapabilities();
-    if(caps.torch){
-      document.getElementById("torchBtn").disabled=false;
-      log("info","Torcia disponibile");
-    }
+    const caps=track.getCapabilities();
+    if(caps.torch) torchBtn.disabled=false;
 
     startDecoding();
   }catch(e){
@@ -184,25 +184,18 @@ async function startCamera(){
   }
 }
 
-/* =====================================================
-   STOP CAMERA
-===================================================== */
 function stopCamera(){
   if(stream){
     stream.getTracks().forEach(t=>t.stop());
     stream=null;
     track=null;
     torchOn=false;
-    document.getElementById("stopBtn").disabled=true;
-    document.getElementById("torchBtn").disabled=true;
-    log("warn","Camera fermata");
+    stopBtn.disabled=true;
+    torchBtn.disabled=true;
   }
   if(analyzeLoop) cancelAnimationFrame(analyzeLoop);
 }
 
-/* =====================================================
-   DECODIFICA CONTINUA
-===================================================== */
 function startDecoding(){
   const video=document.getElementById("video");
   const canvas=document.createElement("canvas");
@@ -213,14 +206,11 @@ function startDecoding(){
       analyzeLoop=requestAnimationFrame(scan);
       return;
     }
-
     canvas.width=video.videoWidth;
     canvas.height=video.videoHeight;
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
-
-    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const code = jsQR(imageData.data,canvas.width,canvas.height);
-
+    ctx.drawImage(video,0,0);
+    const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code=jsQR(data.data,canvas.width,canvas.height);
     if(code){
       log("info","QR letto: "+code.data);
       stopCamera();
@@ -232,27 +222,19 @@ function startDecoding(){
   scan();
 }
 
-/* =====================================================
-   TORCIA
-===================================================== */
 async function toggleTorch(){
   if(!track) return;
-  torchOn = !torchOn;
+  torchOn=!torchOn;
   try{
     await track.applyConstraints({advanced:[{torch:torchOn}]});
-    log("info","Torcia "+(torchOn?"accesa":"spenta"));
   }catch(e){
     log("error","Errore torcia: "+e);
   }
 }
 
-/* =====================================================
-   LETTURA DA IMMAGINE
-===================================================== */
 document.getElementById("fileInput").addEventListener("change",function(){
   const file=this.files[0];
   if(!file) return;
-
   const img=new Image();
   img.onload=function(){
     const canvas=document.createElement("canvas");
@@ -260,47 +242,28 @@ document.getElementById("fileInput").addEventListener("change",function(){
     canvas.width=img.width;
     canvas.height=img.height;
     ctx.drawImage(img,0,0);
-
     const data=ctx.getImageData(0,0,canvas.width,canvas.height);
     const code=jsQR(data.data,canvas.width,canvas.height);
-    if(code){
-      log("info","QR da immagine: "+code.data);
-      openChecklist(code.data);
-    }else{
-      log("warn","Nessun QR trovato nell’immagine");
-    }
+    if(code) openChecklist(code.data);
   };
   img.src=URL.createObjectURL(file);
 });
 
-/* =====================================================
-   INSERIMENTO MANUALE
-===================================================== */
 function manualSubmit(){
-  const val=document.getElementById("manualInput").value.trim();
-  if(!val){
-    log("warn","Targa manuale vuota");
-    return;
-  }
-  log("info","Targa inserita: "+val);
+  const val=manualInput.value.trim();
+  if(!val) return;
   openChecklist(val);
 }
 
-/* =====================================================
-   APRI TS EMERGENZA
-===================================================== */
 function openChecklist(targa){
-  const clean = targa.replace(/[^A-Za-z0-9]/g,"").toUpperCase();
-  window.location.href = "ts_emergenza.html?targa="+clean;
+  const clean=targa.replace(/[^A-Za-z0-9]/g,"").toUpperCase();
+  window.location.href="ts_emergenza.html?targa="+clean;
 }
 
-/* =====================================================
-   EVENTI
-===================================================== */
-document.getElementById("startBtn").onclick=startCamera;
-document.getElementById("stopBtn").onclick=stopCamera;
-document.getElementById("retryBtn").onclick=(()=>{ stopCamera(); startCamera(); });
-document.getElementById("torchBtn").onclick=toggleTorch;
+startBtn.onclick=startCamera;
+stopBtn.onclick=stopCamera;
+retryBtn.onclick=()=>{stopCamera();startCamera();};
+torchBtn.onclick=toggleTorch;
 
 function clearLog(){
   document.getElementById("log").innerHTML="";
