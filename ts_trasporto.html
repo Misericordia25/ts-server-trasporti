@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -29,7 +29,7 @@ padding:18px 30px;
   border:2px solid #000;
   padding:10px 20px;
   margin-bottom:20px;
-  background:#e5e7eb;
+  background:#d1d5db;
 }
 
 .intestazione-sx,
@@ -71,6 +71,31 @@ padding:18px 30px;
   margin-right:15px;
   margin-bottom:10px;
 }
+
+/* ==============================
+   RIGA INTESTAZIONE TS – 5 CAMPI SU UNA RIGA
+============================== */
+.riga-intestazione{
+  flex-wrap:nowrap;              /* 👈 forza una sola riga */
+}
+
+.riga-intestazione .campo{
+  flex:1 1 18%;                  /* 5 campi = ~20% */
+  margin-right:10px;
+}
+
+.riga-intestazione .campo:last-child{
+  margin-right:0;
+}
+
+/* sicurezza mobile: se lo schermo è troppo stretto */
+@media (max-width: 900px){
+  .riga-intestazione{
+    flex-wrap:wrap;              /* torna a capo solo se serve */
+  }
+}
+
+
 
 .campo label{
   font-weight:bold;
@@ -148,31 +173,36 @@ section.modulo{
 
 <form id="tsForm">
 
-  <div class="riga">
-    <div class="campo">
-      <label>Data del Servizio</label>
-      <input type="date" id="data_servizio" name="data_servizio">
-    </div>
-    <div class="campo">
-      <label>Targa del Mezzo</label>
-      <input type="text" id="targa" name="targa" readonly>
-    </div>
-    <div class="campo">
-      <label>Numero Progressivo</label>
-      <input type="number" id="numero_progressivo" name="numero_progressivo" readonly>
-    </div>
+<div class="riga riga-intestazione">
+  <div class="campo">
+    <label>Data del Servizio</label>
+    <input type="date" id="data_servizio" name="data_servizio">
   </div>
 
-  <div class="riga">
-    <div class="campo">
-      <label>Numero Assistiti</label>
-      <select id="numero_assistiti" name="numero_assistiti">
-        <option value="">Seleziona</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-      </select>
-    </div>
+  <div class="campo">
+    <label>Targa del Mezzo</label>
+    <input type="text" id="targa" name="targa" readonly>
+  </div>
+
+  <div class="campo">
+    <label>ID Tablet</label>
+    <input type="text" id="id_tablet" name="id_tablet" readonly>
+  </div>
+
+  <div class="campo">
+    <label>Numero Progressivo</label>
+    <input type="number" id="numero_progressivo" name="numero_progressivo" readonly>
+  </div>
+
+  <div class="campo">
+    <label>Numero Assistiti</label>
+    <select id="numero_assistiti" name="numero_assistiti">
+      <option value="">–</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+    </select>
+  </div>
   </div>
 
   <div id="assistiti_container" class="assistiti"></div>
@@ -182,11 +212,21 @@ section.modulo{
 
 <script src="js/load-config.js"></script>
 
+
 <script>
 /* ==========================
    AUTO-COMPILAZIONE
 ========================== */
-document.getElementById("data_servizio").valueAsDate = new Date();
+
+const dataInput = document.getElementById('data_servizio');
+
+// Imposta la data SOLO se NON esiste un TS sospeso
+if (!localStorage.getItem('TsTrasporto_DRAFT')) {
+  dataInput.value = new Date().toISOString().slice(0,10);
+}
+
+
+
 
 // --- TARGA AUTO ---
 const targaInput = document.getElementById("targa");
@@ -213,6 +253,8 @@ const tempNum = last + 1;
 
 // lettera tablet inserita dal Presidente in index_impostazioni.html
 const tabletCode = (localStorage.getItem("TABLET_CODE") || "").trim().toUpperCase();
+
+document.getElementById("id_tablet").value = tabletCode;
 
 // modalità definitivo (dal localStorage locale)
 const localFlags = JSON.parse(localStorage.getItem("IMPOSTAZIONI_MISERICORDIA_LOCAL") || "{}");
@@ -1790,6 +1832,9 @@ passive:false});
 
 
 
+
+
+
 <!-- =====================================================
      BLOCCO 5 – TS EMERGENZA (EXPORT + DRAFT) – VERSIONE DEFINITIVA
 ===================================================== -->
@@ -1830,6 +1875,50 @@ document.addEventListener('DOMContentLoaded', () => {
   let LAST_PDF_BLOB   = null;
   let LAST_EXCEL_BLOB = null;
 
+  /* ================= RIPRISTINO DRAFT ===================== */
+  const draftRaw = localStorage.getItem(DRAFT_KEY);
+
+  if (draftRaw) {
+    try {
+      const draft = JSON.parse(draftRaw);
+      console.log("🔁 RIPRISTINO TS DRAFT", draft);
+
+      // Ripopola input / select / textarea
+      document.querySelectorAll('input,select,textarea').forEach(el=>{
+        const k = el.name || el.id;
+        if (!k || draft[k] === undefined) return;
+
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          el.checked = !!draft[k];
+        } else {
+          el.value = draft[k];
+        }
+      });
+
+      // Ripristina canvas firme
+     document.querySelectorAll('canvas').forEach(c=>{
+  const key = 'canvas_' + (c.id || c.dataset.id);
+  if (!draft[key]) return;
+
+  const img = new Image();
+  img.onload = () => {
+    // aspetta il layout finale
+    requestAnimationFrame(() => {
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+    });
+  };
+  img.src = draft[key];
+});
+
+    } catch (e) {
+      console.error("❌ Errore ripristino draft TS", e);
+    }
+  }
+
+
+
   /* ================= PROGRESSIVO ===================== */
   function confermaProgressivoDefinitivo(){
     const year = new Date().getFullYear();
@@ -1858,7 +1947,11 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ================= NOME FILE ===================== */
 
 function getFileNameBase(){
-  const d = document.getElementById('data_servizio')?.value || 'data';
+  const d =
+    document.getElementById('data_servizio')?.value ||
+    new Date().toISOString().slice(0,10);
+
+
 
   const num    = sessionStorage.getItem("TS_PROGRESSIVO_TEMP") || '0';
   const tablet = sessionStorage.getItem("TS_TABLET_CODE") || 'X';
@@ -1875,38 +1968,53 @@ function getFileNameBase(){
 
 
   /* ================= EXCEL – RIGA UNICA ===================== */
-  function buildExcelRow(){
-    return [{
-      Data: document.getElementById('data_servizio')?.value || '',
-      Numero: document.getElementById('numero_progressivo')?.value || '',
-      Nome: document.querySelector('[name="assistito1_nome"]')?.value || '',
-      Codice_CCT_118_1: document.querySelector('[name="assistito1_codice"]')?.value || '',
-      Codice_CCT_118_2: document.querySelector('[name="assistito2_codice"]')?.value || '',
-      Codice_CCT_118_3: document.querySelector('[name="assistito3_codice"]')?.value || '',
-      KM: document.getElementById('totale_km')?.value || 0
-    }];
-  }
+ function buildExcelRow(){
+  const tablet = sessionStorage.getItem("TS_TABLET_CODE") || "";
 
+  return [{
+    Data: document.getElementById('data_servizio')?.value || '',
+    ID_Tablet: tablet,                                  // 👈 NUOVA COLONNA
+    Numero: document.getElementById('numero_progressivo')?.value || '',
+    Nome: document.querySelector('[name="assistito1_nome"]')?.value || '',
+    Codice_CCT_118_1: document.querySelector('[name="assistito1_codice"]')?.value || '',
+    Codice_CCT_118_2: document.querySelector('[name="assistito2_codice"]')?.value || '',
+    Codice_CCT_118_3: document.querySelector('[name="assistito3_codice"]')?.value || '',
+    KM: document.getElementById('totale_km')?.value || 0
+  }];
+}
+
+  
   /* ================= INVIO SERVER ===================== */
-  async function inviaAlServer(pdfBlob, excelBlob){
-    const toBase64 = blob => new Promise(res=>{
-      const r=new FileReader();
-      r.onload=()=>res(r.result.split(',')[1]);
-      r.readAsDataURL(blob);
-    });
+async function inviaAlServer(pdfBlob, excelBlob, payload){
 
-    const payload = {
-      pdf:{ name:`TS_${Date.now()}.pdf`, data:await toBase64(pdfBlob) },
-      excel:{ name:`TS_${Date.now()}.xlsx`, data:await toBase64(excelBlob) }
-    };
+  const toBase64 = blob => new Promise(res=>{
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.readAsDataURL(blob);
+  });
 
-    const res = await fetch('/.netlify/functions/upload-drive',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload)
-    });
-    if(!res.ok) throw new Error('Upload fallito');
-  }
+  // ➕ AGGIUNGI pdf / excel AL payload ESISTENTE
+  payload.pdf = {
+    name: getFileNameBase() + ".pdf",
+    data: await toBase64(pdfBlob)
+  };
+
+  payload.excel = excelBlob ? {
+    name: getFileNameBase() + ".xlsx",
+    data: await toBase64(excelBlob)
+  } : null;
+
+  console.log("PAYLOAD FINALE INVIATO", payload);
+
+  const res = await fetch('/.netlify/functions/upload-drive',{
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+
+  if(!res.ok) throw new Error('Upload fallito');
+}
+
 
   /* ================= DRAFT ===================== */
   function raccogliDatiModulo(){
@@ -1931,6 +2039,44 @@ function getFileNameBase(){
 
 
 
+function applicaPuliziaPDF(root){
+
+  // 1️⃣ Rimuove righe assistiti completamente vuote
+  root.querySelectorAll('.riga-paziente').forEach(riga=>{
+    const hasValue = [...riga.querySelectorAll('input,select,textarea,canvas')]
+      .some(el=>{
+        if(el.tagName === 'CANVAS') return el.toDataURL().length > 2000;
+        if(el.type === 'checkbox' || el.type === 'radio') return el.checked;
+        return el.value && el.value.trim() !== '';
+      });
+
+    if(!hasValue) riga.remove();
+  });
+
+  // 2️⃣ Rimuove blocchi rifiuto ricovero non spuntati
+  root.querySelectorAll('.rifiuto-firma-wrap').forEach(blocco=>{
+    const check = blocco.querySelector('input[type="checkbox"]');
+    if(check && !check.checked) blocco.remove();
+  });
+
+  // 3️⃣ Rimuove sanificazione se totalmente vuota
+  const san = root.querySelector('.riga-sanificazione');
+  if(san){
+    const hasSan = [...san.querySelectorAll('input,canvas')]
+      .some(el=>{
+        if(el.tagName === 'CANVAS') return el.toDataURL().length > 2000;
+        if(el.type === 'checkbox') return el.checked;
+        return el.value && el.value.trim() !== '';
+      });
+    if(!hasSan) san.remove();
+  }
+}
+
+
+
+
+
+
 
 
 function cloneModuliPuliti(){
@@ -1938,7 +2084,12 @@ function cloneModuliPuliti(){
   container.style.cssText = 'position:absolute;left:0;top:-4000px;width:210mm;background:#fff';
 
   document.querySelectorAll('section.modulo').forEach(modulo=>{
-    const clone = modulo.cloneNode(true);
+
+const clone = modulo.cloneNode(true);
+
+applicaPuliziaPDF(clone);
+
+   
 
     // Rimuove elementi non stampabili
     clone.querySelectorAll(
@@ -2032,7 +2183,27 @@ function cloneModuliPuliti(){
       );
     }
 
-await inviaAlServer(LAST_PDF_BLOB,LAST_EXCEL_BLOB);
+// ================= PAYLOAD CONTESTO =================
+const societa = localStorage.getItem("CODICE_SOCIETA"); // es: MIS_OSIMO
+const data_servizio =
+  document.getElementById("data_servizio")?.value ||
+  new Date().toISOString().slice(0,10);
+
+const payload = {
+  societa,
+  modulo: "TS_TRASPORTO",
+  tipo: "TS",
+  data_servizio,
+  deposito_drive: true
+};
+
+// DEBUG
+console.log("UPLOAD CONTEXT", payload);
+window.__lastUploadPayload = payload;
+
+// INVIO
+await inviaAlServer(LAST_PDF_BLOB, LAST_EXCEL_BLOB, payload);
+
 
 alert('✅ Documenti caricati correttamente sul server');
 
@@ -2044,6 +2215,3 @@ window.location.href = '../index.html';
 
    
 </script>
-
-
-    
