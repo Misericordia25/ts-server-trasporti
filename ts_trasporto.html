@@ -1876,12 +1876,17 @@ document.addEventListener('DOMContentLoaded', () => {
   let LAST_EXCEL_BLOB = null;
 
   /* ================= RIPRISTINO DRAFT ===================== */
-  const draftRaw = localStorage.getItem(DRAFT_KEY);
+  
 
-  if (draftRaw) {
-    try {
-      const draft = JSON.parse(draftRaw);
-      console.log("🔁 RIPRISTINO TS DRAFT", draft);
+const url = new URL(window.location.href);
+const recupero = url.searchParams.get("recupero"); // 👈 controllo
+
+if (recupero === "1") { // 👈 ripristino SOLO se richiesto
+const draftRaw = localStorage.getItem(DRAFT_KEY);
+if (draftRaw) {
+try {
+const draft = JSON.parse(draftRaw);
+console.log("🔁 RIPRISTINO TS DRAFT", draft);
 
       // Ripopola input / select / textarea
       document.querySelectorAll('input,select,textarea').forEach(el=>{
