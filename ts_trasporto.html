@@ -2077,13 +2077,6 @@ function applicaPuliziaPDF(root){
   }
 }
 
-
-
-
-
-
-
-
 function cloneModuliPuliti(){
   const container = document.createElement('div');
   container.style.cssText = 'position:absolute;left:0;top:-4000px;width:210mm;background:#fff';
@@ -2094,8 +2087,7 @@ const clone = modulo.cloneNode(true);
 
 applicaPuliziaPDF(clone);
 
-   
-
+  
     // Rimuove elementi non stampabili
     clone.querySelectorAll(
       'button,.clear-firma-btn,.remove-btn,.controls,#convalida_wrap,input[type=file],input[type=range]'
@@ -2124,15 +2116,6 @@ applicaPuliziaPDF(clone);
   document.body.appendChild(container);
   return container;
 }
-
-
-
-
-
-
-
-
-
 
   /* ================= PDF ===================== */
   document.getElementById('btn_ts_pdf').onclick=async()=>{
@@ -2216,4 +2199,5 @@ alert('✅ Documenti caricati correttamente sul server');
 window.location.href = '../index.html';
 
   };
+});   
 </script>
