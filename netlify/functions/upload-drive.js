@@ -1,10 +1,3 @@
-/**
- * upload-drive.js (Netlify Function)
- * - Upload PDF/Excel su Drive (OAuth utente app.misericordia25)
- * - Crea albero: ROOT / ANNO / MODULO / MESE
- * - Invia email (Nodemailer)
- */
-
 const { google } = require("googleapis");
 const nodemailer = require("nodemailer");
 const { Readable } = require("stream");
@@ -71,7 +64,8 @@ function meseFolder(data) {
   return mesi[new Date(data).getMonth()];
 }
 
-async function buildTree(drive, societa, modulo, data) {
+/* ===================== SOLO MODIFICA QUI ===================== */
+async function buildTree(drive, societa, modulo, tipo, data) {
   const rootId = ROOTS[societa];
   if (!rootId) throw new Error("Società non riconosciuta");
 
@@ -80,8 +74,17 @@ async function buildTree(drive, societa, modulo, data) {
 
   const annoId = await getOrCreateFolder(drive, anno, rootId);
   const modId = await getOrCreateFolder(drive, modulo, annoId);
-  return await getOrCreateFolder(drive, mese, modId);
+  const meseId = await getOrCreateFolder(drive, mese, modId);
+
+  if (tipo === "TS") {
+    const pdfId   = await getOrCreateFolder(drive, "PDF", meseId);
+    const excelId = await getOrCreateFolder(drive, "EXCEL", meseId);
+    return { pdfId, excelId };
+  }
+
+  return { pdfId: meseId };
 }
+/* ============================================================ */
 
 function toDriveViewLink(id) {
   return `https://drive.google.com/file/d/${id}/view`;
@@ -120,11 +123,18 @@ exports.handler = async (event) => {
     let excelLink = null;
 
     if (deposito_drive === true && drive) {
-      const parentId = await buildTree(drive, societa, modulo, data_servizio);
+
+      const folders = await buildTree(
+        drive,
+        societa,
+        modulo,
+        tipo,
+        data_servizio
+      );
 
       if (pdf) {
         const resPdf = await drive.files.create({
-          requestBody: { name: pdf.name, parents: [parentId] },
+          requestBody: { name: pdf.name, parents: [folders.pdfId] },
           media: { mimeType: "application/pdf", body: Readable.from(bufferFromBase64(pdf.data)) },
           fields: "id"
         });
@@ -133,7 +143,7 @@ exports.handler = async (event) => {
 
       if (tipo === "TS" && excel) {
         const resXls = await drive.files.create({
-          requestBody: { name: excel.name, parents: [parentId] },
+          requestBody: { name: excel.name, parents: [folders.excelId] },
           media: {
             mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             body: Readable.from(bufferFromBase64(excel.data))
@@ -188,9 +198,6 @@ exports.handler = async (event) => {
       });
     }
 
-    /* =====================================================
-       RISPOSTA OK
-    ===================================================== */
     return {
       statusCode: 200,
       body: JSON.stringify({
