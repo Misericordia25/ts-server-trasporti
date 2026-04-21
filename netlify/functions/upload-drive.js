@@ -7,8 +7,8 @@ const { Readable } = require("stream");
 ===================================================== */
 const ROOTS = {
   MIS_OSIMO: "1bsPNJ2BFJIP9Q3WwDSVNy32u-Qu2qMjr",
-  MIS_MONTEGIORGIO: "1PCvF76LJwD6T_OaPtkWg6dh1Tg-DG6or",
-  MIS_GROTTAMMARE: "12Nj8o942uedxByJOtcSKXvkTBH6ShNNA"
+  MIS_MONTEGIORGIO: "1CHZbSwLkrJ6EWpyb21c4DadreCb75REt",
+  MIS_GROTTAMMARE: "1_ezSWMoQOpgiuiOFc5NOtlMrjMJEUHhv"
 };
 
 /* =====================================================
@@ -164,7 +164,7 @@ exports.handler = async (event) => {
         secure: false,
         auth: {
           user: process.env.MAIL_USER,
-          pass: process.env.MAIL_PWD
+          pass: process.env.MAIL_PASSWORD
         }
       });
 
